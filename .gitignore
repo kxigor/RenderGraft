@@ -88,3 +88,7 @@ PLAN.md
 
 # MCP
 .mcp.json
+.codex/config.toml
+
+# Local agent memory imported from Claude
+.agent-context/
