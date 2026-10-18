@@ -1,20 +1,20 @@
 #include <gtest/gtest.h>
 
-#include <afw/games/fc3/fc3.hpp>
 #include <atomic>
 #include <cstdint>
+#include <rgf/games/fc3/fc3.hpp>
 #include <support/fc3_world.hpp>
 #include <thread>
 
 namespace {
 
-using afw::testing::Fc3World;
-using afw::testing::kEntityArrayOne;
-using afw::testing::kEntityArrayTwo;
-using afw::testing::kEntityOne;
-using afw::testing::kEntityTwo;
-using afw::testing::kScheduler;
-using afw::testing::kWorldWrap;
+using rgf::testing::Fc3World;
+using rgf::testing::kEntityArrayOne;
+using rgf::testing::kEntityArrayTwo;
+using rgf::testing::kEntityOne;
+using rgf::testing::kEntityTwo;
+using rgf::testing::kScheduler;
+using rgf::testing::kWorldWrap;
 
 // ThreadSanitizer does not exist for this target, and the other suites are
 // single-threaded, so nothing there can observe the race the triple buffer
@@ -48,7 +48,7 @@ class Fc3HandoffUnit : public Fc3World {
   }
 
   [[nodiscard]] static bool IsSelfConsistent(
-      const afw::games::fc3::EntityInfo& entity) {
+      const rgf::games::fc3::EntityInfo& entity) {
     return entity.transform.Translation().x == PositionFor(entity.address);
   }
 };
@@ -65,7 +65,7 @@ TEST_F(Fc3HandoffUnit, TheHeldSnapshotDoesNotChangeUnderTheReader) {
   std::thread writer{[this, &walking] {
     for (int walk{0}; walk < kWalks; ++walk) {
       Poke(kEntityArrayOne, (walk % 2) == 0 ? At(kEntityOne) : At(kEntityTwo));
-      afw::games::fc3::TakeCensus(At(kScheduler));
+      rgf::games::fc3::TakeCensus(At(kScheduler));
     }
     walking.store(false);
   }};
@@ -74,11 +74,11 @@ TEST_F(Fc3HandoffUnit, TheHeldSnapshotDoesNotChangeUnderTheReader) {
   std::uint32_t torn{0};
   std::uint32_t moved{0};
   while (walking.load()) {
-    afw::games::fc3::PublishCensus();
+    rgf::games::fc3::PublishCensus();
 
-    const afw::games::fc3::EntitySnapshot& kSnapshot{
-        afw::games::fc3::LastSnapshot()};
-    ASSERT_LE(kSnapshot.count, afw::games::fc3::kMaxEntities);
+    const rgf::games::fc3::EntitySnapshot& kSnapshot{
+        rgf::games::fc3::LastSnapshot()};
+    ASSERT_LE(kSnapshot.count, rgf::games::fc3::kMaxEntities);
     if (kSnapshot.count == 0) {
       continue;
     }

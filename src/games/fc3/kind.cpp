@@ -1,9 +1,9 @@
-#include <afw/games/fc3/internal/kind.hpp>
-#include <afw/games/fc3/internal/structs.hpp>
-#include <afw/games/fc3/snapshot.hpp>
 #include <cstdint>
+#include <rgf/games/fc3/internal/kind.hpp>
+#include <rgf/games/fc3/internal/structs.hpp>
+#include <rgf/games/fc3/snapshot.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 bool ArmiesHostile(const PawnInfo& self, const PawnInfo& other) noexcept {
   return ((other.ownArmyBit & self.hostileMask) != 0) ||
@@ -92,4 +92,4 @@ const char* KindName(Kind kind) noexcept {
   }
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

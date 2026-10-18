@@ -1,20 +1,20 @@
-#include <afw/games/fc3/camera.hpp>
-#include <afw/games/fc3/error.hpp>
-#include <afw/games/fc3/internal/components.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/module.hpp>
-#include <afw/math/angle.hpp>
-#include <afw/math/direction.hpp>
-#include <afw/process/memory.hpp>
 #include <cmath>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <rgf/games/fc3/camera.hpp>
+#include <rgf/games/fc3/error.hpp>
+#include <rgf/games/fc3/internal/components.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/module.hpp>
+#include <rgf/math/angle.hpp>
+#include <rgf/math/direction.hpp>
+#include <rgf/process/memory.hpp>
 #include <system_error>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 math::ViewAngles ViewAnglesTo(const math::Vec3& direction) noexcept {
   const math::ViewAngles kWorld{math::AnglesOf(direction)};
@@ -122,4 +122,4 @@ std::expected<CameraBasis, std::error_code> ReadCamera() noexcept {
                      .fovHorizontalRadians = *kFovHorizontal};
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

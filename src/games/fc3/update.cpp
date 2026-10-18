@@ -1,10 +1,10 @@
-#include <afw/games/fc3/internal/layout/scheduler.hpp>
-#include <afw/games/fc3/internal/module.hpp>
-#include <afw/games/fc3/update.hpp>
-#include <afw/hook/hook.hpp>
 #include <bit>
+#include <rgf/games/fc3/internal/layout/scheduler.hpp>
+#include <rgf/games/fc3/internal/module.hpp>
+#include <rgf/games/fc3/update.hpp>
+#include <rgf/hook/hook.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -34,4 +34,4 @@ RunAllGroupFn OriginalRunAllGroup() noexcept {
   return kHook->Original<RunAllGroupFn>();
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

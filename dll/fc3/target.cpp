@@ -1,19 +1,19 @@
-#include <afw/aimbot/aimbot.hpp>
-#include <afw/config/config.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/games/fc3/internal/kind.hpp>
-#include <afw/math/angle.hpp>
-#include <afw/math/direction.hpp>
-#include <afw/math/ray.hpp>
-#include <afw/math/vec3.hpp>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <rgf/aimbot/aimbot.hpp>
+#include <rgf/config/config.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/games/fc3/internal/kind.hpp>
+#include <rgf/math/angle.hpp>
+#include <rgf/math/direction.hpp>
+#include <rgf/math/ray.hpp>
+#include <rgf/math/vec3.hpp>
 #include <system_error>
 
 #include "internal.hpp"
 
-namespace afw::dll {
+namespace rgf::dll {
 
 namespace {
 
@@ -152,4 +152,4 @@ void UpdateReach() noexcept {
   }
 }
 
-}  // namespace afw::dll
+}  // namespace rgf::dll

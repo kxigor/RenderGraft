@@ -1,10 +1,10 @@
-#include <afw/config/config.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/hook/held_patch.hpp>
+#include <rgf/config/config.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/hook/held_patch.hpp>
 
 #include "internal.hpp"
 
-namespace afw::dll {
+namespace rgf::dll {
 
 void SteadyAim() noexcept {
   static hook::HeldPatch recoil{&games::fc3::SuppressRecoil};
@@ -21,4 +21,4 @@ void SteadyAim() noexcept {
   emptyMagazine.Follow(kSettings.infiniteAmmo.load());
 }
 
-}  // namespace afw::dll
+}  // namespace rgf::dll

@@ -3,14 +3,14 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <cstring>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
 
-namespace afw::testing {
+namespace rgf::testing {
 
 // A fake world laid out the way the engine lays out a real one, so the walk
 // under test reads it with the very offsets it uses on the game. The offsets
@@ -172,4 +172,4 @@ class Fc3World : public ::testing::Test {
   std::uint32_t base_{0};
 };
 
-}  // namespace afw::testing
+}  // namespace rgf::testing

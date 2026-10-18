@@ -1,22 +1,22 @@
 #include <gtest/gtest.h>
 
-#include <afw/math/angle.hpp>
-#include <afw/math/direction.hpp>
-#include <afw/math/vec3.hpp>
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <rgf/math/angle.hpp>
+#include <rgf/math/direction.hpp>
+#include <rgf/math/vec3.hpp>
 
 namespace {
 
-using afw::math::AngleBetween;
-using afw::math::AnglesOf;
-using afw::math::AnglesTo;
-using afw::math::Difference;
-using afw::math::Share;
-using afw::math::Vec3;
-using afw::math::ViewAngles;
-using afw::math::WrapAngle;
+using rgf::math::AngleBetween;
+using rgf::math::AnglesOf;
+using rgf::math::AnglesTo;
+using rgf::math::Difference;
+using rgf::math::Share;
+using rgf::math::Vec3;
+using rgf::math::ViewAngles;
+using rgf::math::WrapAngle;
 
 constexpr float kPi{std::numbers::pi_v<float>};
 constexpr float kQuarter{kPi / 2.0F};
@@ -51,9 +51,9 @@ TEST(MathAngles, RefusesToPropagateSomethingThatIsNotANumber) {
 }
 
 TEST(MathAngles, ConvertsBetweenDegreesAndRadians) {
-  EXPECT_NEAR(afw::math::Radians(180.0F), kPi, kTolerance);
-  EXPECT_NEAR(afw::math::Radians(90.0F), kQuarter, kTolerance);
-  EXPECT_NEAR(afw::math::Degrees(kPi), 180.0F, kTolerance);
+  EXPECT_NEAR(rgf::math::Radians(180.0F), kPi, kTolerance);
+  EXPECT_NEAR(rgf::math::Radians(90.0F), kQuarter, kTolerance);
+  EXPECT_NEAR(rgf::math::Degrees(kPi), 180.0F, kTolerance);
 }
 
 TEST(MathAngles, ReadsYawAndPitchOffADirection) {

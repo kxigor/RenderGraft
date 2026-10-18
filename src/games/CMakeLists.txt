@@ -1,5 +1,5 @@
 # =========================================================
-# GAME-SPECIFIC LAYER  (afw::games::*)
+# GAME-SPECIFIC LAYER  (rgf::games::*)
 # =========================================================
 # One subdirectory per supported title. Each is a separate static library so a
 # build links only the game it targets. The three titles are deliberately on

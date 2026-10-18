@@ -10,17 +10,17 @@ Main components carried over from AimbotFramework:
 
 | Modules | Purpose |
 | --- | --- |
-| `afw::win`, `afw::remote` | RAII for Win32/COM, process lookup, and DLL injection |
-| `afw::process`, `afw::hook` | Memory reads, module access, signature scanning, VMT/WndProc hooks, and reversible patches |
-| `afw::render`, `afw::app` | D3D11 overlay, per-frame callback, application session, hook management, and logging |
-| `afw::module` | Common DLL bootstrap: running a callback on a worker thread and unloading after the session ends |
-| `afw::math` | 3D geometry, matrices, and projection to screen coordinates |
-| `afw::games::fc3`, `afw::esp`, `afw::aimbot` | Far Cry 3 adapter, entity visualization, and game logic |
-| `afw::menu`, `afw::config` | Interface and settings for the current example |
+| `rgf::win`, `rgf::remote` | RAII for Win32/COM, process lookup, and DLL injection |
+| `rgf::process`, `rgf::hook` | Memory reads, module access, signature scanning, VMT/WndProc hooks, and reversible patches |
+| `rgf::render`, `rgf::app` | D3D11 overlay, per-frame callback, application session, hook management, and logging |
+| `rgf::module` | Common DLL bootstrap: running a callback on a worker thread and unloading after the session ends |
+| `rgf::math` | 3D geometry, matrices, and projection to screen coordinates |
+| `rgf::games::fc3`, `rgf::esp`, `rgf::aimbot` | Far Cry 3 adapter, entity visualization, and game logic |
+| `rgf::menu`, `rgf::config` | Interface and settings for the current example |
 
-The code still retains the `afw::*` names and the current executable names. `afw::app` accepts an implementation through `afw::app::Game`, but installs the D3D11 hook itself; ESP and aim assist still depend on Far Cry 3. Doom 3 and Quake II RTX have skeleton implementations: OpenGL/Vulkan backends and inline/trampoline hooks are not implemented yet.
+The framework uses the `rgf::*` namespace and CMake aliases, with public headers under `include/rgf/`. `rgf::app` accepts an implementation through `rgf::app::Game`, but installs the D3D11 hook itself; ESP and aim assist still depend on Far Cry 3. Doom 3 and Quake II RTX have skeleton implementations: OpenGL/Vulkan backends and inline/trampoline hooks are not implemented yet.
 
-`DllMain` delegates to `afw::module::DllEntry(instance, reason, &OnAttach)`. The `void OnAttach()` callback runs the entire session; before returning, it must finish its work and remove its hooks. `app::Run()` releases session resources and returns, then the callback's local objects are destroyed and the bootstrap unloads the DLL. If an unexpected exception escapes the callback, the worker thread exits and leaves the DLL loaded.
+`DllMain` delegates to `rgf::module::DllEntry(instance, reason, &OnAttach)`. The `void OnAttach()` callback runs the entire session; before returning, it must finish its work and remove its hooks. `app::Run()` releases session resources and returns, then the callback's local objects are destroyed and the bootstrap unloads the DLL. If an unexpected exception escapes the callback, the worker thread exits and leaves the DLL loaded.
 
 ## Development direction
 

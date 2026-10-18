@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/games/fc3/internal/kind.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/games/fc3/internal/kind.hpp>
 
 namespace {
 
-using afw::games::fc3::AgentKind;
-using afw::games::fc3::Kind;
-using afw::games::fc3::PawnInfo;
+using rgf::games::fc3::AgentKind;
+using rgf::games::fc3::Kind;
+using rgf::games::fc3::PawnInfo;
 
 // Every value below was read out of the running game, so these cases pin
 // measured behaviour rather than an invented scheme. The player carries army 2
@@ -17,8 +17,8 @@ using afw::games::fc3::PawnInfo;
 [[nodiscard]] PawnInfo Player() {
   return PawnInfo{.kind = AgentKind::Pawn,
                   .army = 2,
-                  .faction = afw::games::fc3::kFactionUnknown,
-                  .agentType = afw::games::fc3::kAgentPlayer,
+                  .faction = rgf::games::fc3::kFactionUnknown,
+                  .agentType = rgf::games::fc3::kAgentPlayer,
                   .ownArmyBit = 0x04,
                   .hostileMask = 0x03,
                   .reverseHostileMask = 0x00,
@@ -28,8 +28,8 @@ using afw::games::fc3::PawnInfo;
 [[nodiscard]] PawnInfo Pirate() {
   return PawnInfo{.kind = AgentKind::Pawn,
                   .army = 1,
-                  .faction = afw::games::fc3::kFactionPirate,
-                  .agentType = afw::games::fc3::kAgentUnknown,
+                  .faction = rgf::games::fc3::kFactionPirate,
+                  .agentType = rgf::games::fc3::kAgentUnknown,
                   .ownArmyBit = 0x02,
                   .hostileMask = 0x03,
                   .reverseHostileMask = 0x00,
@@ -39,8 +39,8 @@ using afw::games::fc3::PawnInfo;
 [[nodiscard]] PawnInfo Rakyat() {
   return PawnInfo{.kind = AgentKind::Pawn,
                   .army = 4,
-                  .faction = afw::games::fc3::kFactionRebel,
-                  .agentType = afw::games::fc3::kAgentUnknown,
+                  .faction = rgf::games::fc3::kFactionRebel,
+                  .agentType = rgf::games::fc3::kAgentUnknown,
                   .ownArmyBit = 0x10,
                   .hostileMask = 0x03,
                   .reverseHostileMask = 0x00,
@@ -50,8 +50,8 @@ using afw::games::fc3::PawnInfo;
 [[nodiscard]] PawnInfo Civilian() {
   return PawnInfo{.kind = AgentKind::Pawn,
                   .army = 5,
-                  .faction = afw::games::fc3::kFactionUnknown,
-                  .agentType = afw::games::fc3::kAgentUnknown,
+                  .faction = rgf::games::fc3::kFactionUnknown,
+                  .agentType = rgf::games::fc3::kAgentUnknown,
                   .ownArmyBit = 0x20,
                   .hostileMask = 0x03,
                   .reverseHostileMask = 0x00,
@@ -63,13 +63,13 @@ using afw::games::fc3::PawnInfo;
 TEST(Fc3KindUnit, APirateIsAnEnemyByFaction) {
   const PawnInfo kSelf{Player()};
 
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(Pirate(), &kSelf), Kind::Enemy);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(Pirate(), &kSelf), Kind::Enemy);
 }
 
 TEST(Fc3KindUnit, ARakyatIsAnAllyByFaction) {
   const PawnInfo kSelf{Player()};
 
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(Rakyat(), &kSelf), Kind::Ally);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(Rakyat(), &kSelf), Kind::Ally);
 }
 
 // Army 5 is a real army, and an earlier version answered "has an army, so it is
@@ -78,28 +78,28 @@ TEST(Fc3KindUnit, ARakyatIsAnAllyByFaction) {
 TEST(Fc3KindUnit, ACivilianWithAnArmyIsStillNotAnEnemy) {
   const PawnInfo kSelf{Player()};
 
-  EXPECT_FALSE(afw::games::fc3::ArmiesHostile(kSelf, Civilian()));
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(Civilian(), &kSelf), Kind::Civilian);
+  EXPECT_FALSE(rgf::games::fc3::ArmiesHostile(kSelf, Civilian()));
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(Civilian(), &kSelf), Kind::Civilian);
 }
 
 TEST(Fc3KindUnit, HostilityIsDecidedByTheMasksNotTheArmyNumber) {
   const PawnInfo kSelf{Player()};
 
-  EXPECT_TRUE(afw::games::fc3::ArmiesHostile(kSelf, Pirate()));
+  EXPECT_TRUE(rgf::games::fc3::ArmiesHostile(kSelf, Pirate()));
 }
 
 TEST(Fc3KindUnit, TheAgentTypeOutranksTheFaction) {
   const PawnInfo kSelf{Player()};
 
   PawnInfo companion{Pirate()};
-  companion.agentType = afw::games::fc3::kAgentCompanion;
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(companion, &kSelf), Kind::Ally);
+  companion.agentType = rgf::games::fc3::kAgentCompanion;
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(companion, &kSelf), Kind::Ally);
 
   PawnInfo civilian{Pirate()};
-  civilian.agentType = afw::games::fc3::kAgentCivilian;
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(civilian, &kSelf), Kind::Civilian);
+  civilian.agentType = rgf::games::fc3::kAgentCivilian;
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(civilian, &kSelf), Kind::Civilian);
 
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(Player(), &kSelf), Kind::Self);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(Player(), &kSelf), Kind::Self);
 }
 
 // The class of the agent settles it before any field is read, which is what
@@ -112,15 +112,15 @@ TEST(Fc3KindUnit, TheAgentClassOutranksEverything) {
   animal.ownArmyBit = 0x08;
   animal.hostileMask = 0x37;
   animal.reverseHostileMask = 0x00;
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(animal, &kSelf), Kind::Animal);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(animal, &kSelf), Kind::Animal);
 
   PawnInfo bird{Pirate()};
   bird.kind = AgentKind::SimpleAnimal;
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(bird, &kSelf), Kind::Bird);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(bird, &kSelf), Kind::Bird);
 
   PawnInfo vehicle{Pirate()};
   vehicle.kind = AgentKind::Vehicle;
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(vehicle, &kSelf), Kind::Vehicle);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(vehicle, &kSelf), Kind::Vehicle);
 }
 
 TEST(Fc3KindUnit, AnAnimalHostileToThePlayerIsAPredator) {
@@ -130,41 +130,41 @@ TEST(Fc3KindUnit, AnAnimalHostileToThePlayerIsAPredator) {
   predator.kind = AgentKind::Animal;
   predator.reverseHostileMask = kSelf.ownArmyBit;
 
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(predator, &kSelf), Kind::Predator);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(predator, &kSelf), Kind::Predator);
 }
 
 // Without a player there is nobody to be hostile towards, and answering "enemy"
 // there once painted a whole village red.
 TEST(Fc3KindUnit, WithoutAPlayerNobodyBecomesAnEnemyByTheMasks) {
   PawnInfo stranger{Civilian()};
-  stranger.faction = afw::games::fc3::kFactionUnknown;
+  stranger.faction = rgf::games::fc3::kFactionUnknown;
 
-  EXPECT_EQ(afw::games::fc3::KindOfPawn(stranger, nullptr), Kind::Civilian);
+  EXPECT_EQ(rgf::games::fc3::KindOfPawn(stranger, nullptr), Kind::Civilian);
 }
 
 TEST(Fc3KindUnit, AnEntityWithoutAPawnRecordIsAProp) {
-  const afw::games::fc3::EntityInfo kEntity{};
+  const rgf::games::fc3::EntityInfo kEntity{};
 
-  EXPECT_EQ(afw::games::fc3::KindOf(kEntity, nullptr), Kind::Prop);
+  EXPECT_EQ(rgf::games::fc3::KindOf(kEntity, nullptr), Kind::Prop);
 }
 
 TEST(Fc3KindUnit, FindSelfPicksThePlayerAndNotTheNearestPawn) {
-  static afw::games::fc3::EntitySnapshot snapshot{};
+  static rgf::games::fc3::EntitySnapshot snapshot{};
   snapshot.count = 3;
   snapshot.items.at(0).pawn = Pirate();
   snapshot.items.at(1).pawn = Player();
   snapshot.items.at(2).pawn = Rakyat();
 
-  const PawnInfo* const kSelf{afw::games::fc3::FindSelf(snapshot)};
+  const PawnInfo* const kSelf{rgf::games::fc3::FindSelf(snapshot)};
 
   ASSERT_NE(kSelf, nullptr);
-  EXPECT_EQ(kSelf->agentType, afw::games::fc3::kAgentPlayer);
+  EXPECT_EQ(kSelf->agentType, rgf::games::fc3::kAgentPlayer);
 }
 
 TEST(Fc3KindUnit, FindSelfIsNullWhenThePlayerIsAbsent) {
-  static afw::games::fc3::EntitySnapshot snapshot{};
+  static rgf::games::fc3::EntitySnapshot snapshot{};
   snapshot.count = 1;
   snapshot.items.at(0).pawn = Pirate();
 
-  EXPECT_EQ(afw::games::fc3::FindSelf(snapshot), nullptr);
+  EXPECT_EQ(rgf::games::fc3::FindSelf(snapshot), nullptr);
 }

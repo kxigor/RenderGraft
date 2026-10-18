@@ -1,22 +1,22 @@
-#include <afw/abi/abi.hpp>
-#include <afw/games/fc3/internal/agent.hpp>
-#include <afw/games/fc3/internal/class_registry.hpp>
-#include <afw/games/fc3/internal/components.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/module.hpp>
-#include <afw/games/fc3/internal/pawn.hpp>
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/module.hpp>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <optional>
+#include <rgf/abi/abi.hpp>
+#include <rgf/games/fc3/internal/agent.hpp>
+#include <rgf/games/fc3/internal/class_registry.hpp>
+#include <rgf/games/fc3/internal/components.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/module.hpp>
+#include <rgf/games/fc3/internal/pawn.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/module.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
-using AiComponentFn = void*(AFW_ENGINE_CALL*)(void* self);
+using AiComponentFn = void*(RGF_ENGINE_CALL*)(void* self);
 
 constexpr std::array<AgentKind, kAgentKindCount> kAgentKinds{
     AgentKind::Pawn, AgentKind::Animal, AgentKind::Vehicle,
@@ -87,4 +87,4 @@ std::optional<PawnInfo> ReadPawn(std::uintptr_t address) noexcept {
   return ReadAgent(*kAgent, *kKind);
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

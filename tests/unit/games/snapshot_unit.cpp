@@ -1,21 +1,21 @@
 #include <gtest/gtest.h>
 
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/math/vec3.hpp>
 #include <cstdint>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/math/vec3.hpp>
 #include <support/fc3_world.hpp>
 #include <tuple>
 
 namespace {
 
-using afw::testing::Fc3World;
-using afw::testing::kAgentOne;
-using afw::testing::kEntityArrayOne;
-using afw::testing::kEntityArrayTwo;
-using afw::testing::kEntityOne;
-using afw::testing::kEntityTwo;
-using afw::testing::kScheduler;
+using rgf::testing::Fc3World;
+using rgf::testing::kAgentOne;
+using rgf::testing::kEntityArrayOne;
+using rgf::testing::kEntityArrayTwo;
+using rgf::testing::kEntityOne;
+using rgf::testing::kEntityTwo;
+using rgf::testing::kScheduler;
 
 // Everything here drives the half of the census the ESP actually draws from.
 // Before these, no test ever put a non-null pointer in an entity array, so the
@@ -35,15 +35,15 @@ class Fc3SnapshotUnit : public Fc3World {
     Poke(kEntityArrayTwo, At(kEntityTwo));
   }
 
-  [[nodiscard]] const afw::games::fc3::EntitySnapshot& WalkAndRead() {
+  [[nodiscard]] const rgf::games::fc3::EntitySnapshot& WalkAndRead() {
     std::ignore = Walk(At(kScheduler));
 
-    return afw::games::fc3::LastSnapshot();
+    return rgf::games::fc3::LastSnapshot();
   }
 };
 
 TEST_F(Fc3SnapshotUnit, PublishesTheEntitiesTheWalkFound) {
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
 
   ASSERT_EQ(kSnapshot.count, 2U);
   EXPECT_EQ(kSnapshot.humanoids, 1U);
@@ -51,7 +51,7 @@ TEST_F(Fc3SnapshotUnit, PublishesTheEntitiesTheWalkFound) {
 }
 
 TEST_F(Fc3SnapshotUnit, TellsAHumanoidShapedBoxFromAProp) {
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
   ASSERT_EQ(kSnapshot.count, 2U);
 
   EXPECT_TRUE(kSnapshot.items.at(0).humanoid);
@@ -60,21 +60,21 @@ TEST_F(Fc3SnapshotUnit, TellsAHumanoidShapedBoxFromAProp) {
 }
 
 TEST_F(Fc3SnapshotUnit, CarriesThePositionThroughUnchanged) {
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
   ASSERT_EQ(kSnapshot.count, 2U);
 
-  const afw::math::Vec3 kPosition{
+  const rgf::math::Vec3 kPosition{
       kSnapshot.items.at(0).transform.Translation()};
   EXPECT_FLOAT_EQ(kPosition.x, 100.0F);
   EXPECT_FLOAT_EQ(kPosition.y, 200.0F);
 }
 
 TEST_F(Fc3SnapshotUnit, GivesAHumanoidItsPawnRecordWhenTheFieldsAreInRange) {
-  Poke(kAgentOne + afw::games::fc3::kAgentArmy, 2);
-  Poke(kAgentOne + afw::games::fc3::kAgentFaction, 1);
-  Poke(kAgentOne + afw::games::fc3::kAgentType, 3);
+  Poke(kAgentOne + rgf::games::fc3::kAgentArmy, 2);
+  Poke(kAgentOne + rgf::games::fc3::kAgentFaction, 1);
+  Poke(kAgentOne + rgf::games::fc3::kAgentType, 3);
 
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
   ASSERT_EQ(kSnapshot.count, 2U);
   ASSERT_TRUE(kSnapshot.items.at(0).pawn.has_value());
   EXPECT_EQ(kSnapshot.items.at(0).pawn->army, 2);
@@ -87,10 +87,10 @@ TEST_F(Fc3SnapshotUnit, GivesAHumanoidItsPawnRecordWhenTheFieldsAreInRange) {
 // a post-load callback, so a spawned pawn never runs it. Gating on it dropped
 // every spawned NPC in the game, which is why it must not decide this.
 TEST_F(Fc3SnapshotUnit, KeepsThePawnRecordWhenTheArmyBitDisagrees) {
-  Poke(kAgentOne + afw::games::fc3::kAgentArmy, 2);
-  Poke(kAgentOne + afw::games::fc3::kPawnAgentArmyBlock, 1U);
+  Poke(kAgentOne + rgf::games::fc3::kAgentArmy, 2);
+  Poke(kAgentOne + rgf::games::fc3::kPawnAgentArmyBlock, 1U);
 
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
   ASSERT_EQ(kSnapshot.count, 2U);
   ASSERT_TRUE(kSnapshot.items.at(0).pawn.has_value());
   EXPECT_EQ(kSnapshot.items.at(0).pawn->army, 2);
@@ -102,25 +102,25 @@ TEST_F(Fc3SnapshotUnit, KeepsThePawnRecordWhenTheArmyBitDisagrees) {
 // record: dropping the whole thing is how an entity ended up classified by the
 // size of its bounding box instead.
 TEST_F(Fc3SnapshotUnit, FallsBackOnAFieldRatherThanDroppingTheRecord) {
-  Poke(kAgentOne + afw::games::fc3::kAgentType, 9);
-  Poke(kAgentOne + afw::games::fc3::kAgentArmy, 99);
-  Poke(kAgentOne + afw::games::fc3::kAgentFaction, 77);
+  Poke(kAgentOne + rgf::games::fc3::kAgentType, 9);
+  Poke(kAgentOne + rgf::games::fc3::kAgentArmy, 99);
+  Poke(kAgentOne + rgf::games::fc3::kAgentFaction, 77);
 
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
   ASSERT_EQ(kSnapshot.count, 2U);
   ASSERT_TRUE(kSnapshot.items.at(0).pawn.has_value());
 
-  const afw::games::fc3::PawnInfo& kPawn{*kSnapshot.items.at(0).pawn};
-  EXPECT_EQ(kPawn.agentType, afw::games::fc3::kAgentUnknown);
-  EXPECT_EQ(kPawn.army, afw::games::fc3::kNoArmy);
-  EXPECT_EQ(kPawn.faction, afw::games::fc3::kFactionUnknown);
+  const rgf::games::fc3::PawnInfo& kPawn{*kSnapshot.items.at(0).pawn};
+  EXPECT_EQ(kPawn.agentType, rgf::games::fc3::kAgentUnknown);
+  EXPECT_EQ(kPawn.army, rgf::games::fc3::kNoArmy);
+  EXPECT_EQ(kPawn.faction, rgf::games::fc3::kFactionUnknown);
 }
 
 // The second entity is built without an agent at all, so it stands for
 // everything in the world that is scenery: no record, and nothing downstream
 // may invent a kind for it.
 TEST_F(Fc3SnapshotUnit, WithholdsThePawnRecordWhenThereIsNoAgent) {
-  const afw::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
+  const rgf::games::fc3::EntitySnapshot& kSnapshot{WalkAndRead()};
 
   ASSERT_EQ(kSnapshot.count, 2U);
   EXPECT_FALSE(kSnapshot.items.at(1).pawn.has_value());
@@ -132,17 +132,17 @@ TEST_F(Fc3SnapshotUnit, WithholdsThePawnRecordWhenThereIsNoAgent) {
 // into the very array the reader was iterating.
 TEST_F(Fc3SnapshotUnit, AWalkDoesNotDisturbTheSnapshotAlreadyPublished) {
   std::ignore = Walk(At(kScheduler));
-  ASSERT_EQ(afw::games::fc3::LastSnapshot().count, 2U);
+  ASSERT_EQ(rgf::games::fc3::LastSnapshot().count, 2U);
 
   Poke(kEntityArrayOne, 0);
-  afw::games::fc3::PublishCensus();
-  afw::games::fc3::TakeCensus(At(kScheduler));
+  rgf::games::fc3::PublishCensus();
+  rgf::games::fc3::TakeCensus(At(kScheduler));
 
-  EXPECT_EQ(afw::games::fc3::LastSnapshot().count, 2U);
+  EXPECT_EQ(rgf::games::fc3::LastSnapshot().count, 2U);
 
   Settle(At(kScheduler));
 
-  EXPECT_EQ(afw::games::fc3::LastSnapshot().count, 1U);
+  EXPECT_EQ(rgf::games::fc3::LastSnapshot().count, 1U);
 }
 
 // The reader holds a reference across a whole frame, so the buffer behind it
@@ -150,13 +150,13 @@ TEST_F(Fc3SnapshotUnit, AWalkDoesNotDisturbTheSnapshotAlreadyPublished) {
 TEST_F(Fc3SnapshotUnit, TheReaderKeepsItsBufferWhileTheNextWalkRuns) {
   std::ignore = Walk(At(kScheduler));
 
-  const afw::games::fc3::EntitySnapshot& kHeld{afw::games::fc3::LastSnapshot()};
+  const rgf::games::fc3::EntitySnapshot& kHeld{rgf::games::fc3::LastSnapshot()};
   ASSERT_EQ(kHeld.count, 2U);
 
   Poke(kEntityArrayOne, 0);
   Poke(kEntityArrayTwo, 0);
-  afw::games::fc3::TakeCensus(At(kScheduler));
-  afw::games::fc3::TakeCensus(At(kScheduler));
+  rgf::games::fc3::TakeCensus(At(kScheduler));
+  rgf::games::fc3::TakeCensus(At(kScheduler));
 
   EXPECT_EQ(kHeld.count, 2U);
   EXPECT_EQ(kHeld.items.at(0).address, At(kEntityOne));

@@ -1,31 +1,31 @@
 # =========================================================
-# afw::menu  (STATIC)
+# rgf::menu  (STATIC)
 # =========================================================
-# The overlay's user interface, drawn on top of afw::config. A consumer of
-# afw::render and a sibling of afw::esp -- the two never reference each other.
+# The overlay's user interface, drawn on top of rgf::config. A consumer of
+# rgf::render and a sibling of rgf::esp -- the two never reference each other.
 # Windows-only, so it is added from src/ only under WIN32.
 
-add_library(afw_menu STATIC
+add_library(rgf_menu STATIC
   menu.cpp
 )
-add_library(afw::menu ALIAS afw_menu)
+add_library(rgf::menu ALIAS rgf_menu)
 
-target_compile_features(afw_menu PUBLIC cxx_std_23)
+target_compile_features(rgf_menu PUBLIC cxx_std_23)
 
-target_include_directories(afw_menu
+target_include_directories(rgf_menu
   PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
-target_link_libraries(afw_menu PUBLIC afw::config)
-target_link_libraries(afw_menu PRIVATE afw::render imgui)
+target_link_libraries(rgf_menu PUBLIC rgf::config)
+target_link_libraries(rgf_menu PRIVATE rgf::render imgui)
 
 if(TARGET project_options)
-  target_link_libraries(afw_menu PRIVATE project_options)
+  target_link_libraries(rgf_menu PRIVATE project_options)
 endif()
 if(TARGET project_sanitizers)
-  target_link_libraries(afw_menu PRIVATE project_sanitizers)
+  target_link_libraries(rgf_menu PRIVATE project_sanitizers)
 endif()
 if(TARGET project_coverage)
-  target_link_libraries(afw_menu PRIVATE project_coverage)
+  target_link_libraries(rgf_menu PRIVATE project_coverage)
 endif()

@@ -3,9 +3,9 @@
 function(add_module_probe target throws)
   add_library(${target} SHARED probe.cpp probe.def)
   set_target_properties(${target} PROPERTIES PREFIX "")
-  target_compile_definitions(${target} PRIVATE AFW_MODULE_PROBE_THROWS=${throws})
+  target_compile_definitions(${target} PRIVATE RGF_MODULE_PROBE_THROWS=${throws})
   target_link_libraries(${target} PRIVATE
-    afw::module project_options project_sanitizers project_coverage
+    rgf::module project_options project_sanitizers project_coverage
   )
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_link_options(${target} PRIVATE -Wl,--exclude-all-symbols)
@@ -23,11 +23,11 @@ add_module_probe(module_throw_probe 1)
 
 add_gtest(module_unit
   SOURCES entry_unit.cpp
-  LIBRARIES afw::module project_options project_sanitizers project_coverage
+  LIBRARIES rgf::module project_options project_sanitizers project_coverage
   INCLUDE_DIRECTORIES ${PROJECT_SOURCE_DIR}/tests/unit
   COMPILE_DEFINITIONS
-    AFW_MODULE_RETURN_PROBE_PATH=L\"$<TARGET_FILE:module_return_probe>\"
-    AFW_MODULE_THROW_PROBE_PATH=L\"$<TARGET_FILE:module_throw_probe>\"
+    RGF_MODULE_RETURN_PROBE_PATH=L\"$<TARGET_FILE:module_return_probe>\"
+    RGF_MODULE_THROW_PROBE_PATH=L\"$<TARGET_FILE:module_throw_probe>\"
   PROPERTIES TIMEOUT 45
 )
 add_dependencies(module_unit module_return_probe module_throw_probe)

@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <afw/games/fc3/error.hpp>
+#include <rgf/games/fc3/error.hpp>
 #include <string>
 #include <system_error>
 
 TEST(Fc3ErrorUnit, ReportsAnUnknownCodeAsUnknown) {
-  const std::error_code kUnknown{99, afw::games::fc3::ErrorCategory()};
+  const std::error_code kUnknown{99, rgf::games::fc3::ErrorCategory()};
 
-  EXPECT_EQ(kUnknown.message(), "unknown afw::games::fc3 error");
+  EXPECT_EQ(kUnknown.message(), "unknown rgf::games::fc3 error");
 }
 
 // The three camera codes are what the overlay puts in front of the user when
@@ -18,7 +18,7 @@ TEST(Fc3ErrorUnit, ReportsAnUnknownCodeAsUnknown) {
 // a reader hunting through the class registry for a fault in the field reads.
 TEST(Fc3ErrorUnit, DescribesWhyTheCameraWasNotFound) {
   const std::error_code kNotFound{
-      make_error_code(afw::games::fc3::Error::CameraNotFound)};
+      make_error_code(rgf::games::fc3::Error::CameraNotFound)};
   const std::string kMessage{kNotFound.message()};
 
   EXPECT_EQ(kMessage.find("vtable"), std::string::npos);
@@ -29,9 +29,9 @@ TEST(Fc3ErrorUnit, DescribesWhyTheCameraWasNotFound) {
 // "nothing is active", the other is "it is active and the numbers are wrong".
 TEST(Fc3ErrorUnit, KeepsTheOtherTwoCameraCodesDistinct) {
   const std::string kUnavailable{
-      make_error_code(afw::games::fc3::Error::CameraUnavailable).message()};
+      make_error_code(rgf::games::fc3::Error::CameraUnavailable).message()};
   const std::string kNotSane{
-      make_error_code(afw::games::fc3::Error::CameraNotSane).message()};
+      make_error_code(rgf::games::fc3::Error::CameraNotSane).message()};
 
   EXPECT_NE(kUnavailable, kNotSane);
   EXPECT_NE(kUnavailable.find("no camera is active"), std::string::npos);

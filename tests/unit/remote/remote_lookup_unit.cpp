@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/remote/remote.hpp>
 #include <array>
 #include <cwctype>
 #include <expected>
 #include <filesystem>
+#include <rgf/remote/remote.hpp>
 #include <string>
 #include <system_error>
 
@@ -38,7 +38,7 @@ TEST(RemoteLookupUnit, FindsThisProcessByItsOwnImageName) {
   ASSERT_FALSE(kName.empty());
 
   const std::expected<DWORD, std::error_code> kResult{
-      afw::remote::FindProcessByImageName(kName.c_str())};
+      rgf::remote::FindProcessByImageName(kName.c_str())};
 
   ASSERT_TRUE(kResult.has_value()) << kResult.error().message();
   EXPECT_EQ(*kResult, GetCurrentProcessId());
@@ -49,17 +49,17 @@ TEST(RemoteLookupUnit, MatchesTheImageNameCaseInsensitively) {
   ASSERT_FALSE(kShouted.empty());
 
   const std::expected<DWORD, std::error_code> kResult{
-      afw::remote::FindProcessByImageName(kShouted.c_str())};
+      rgf::remote::FindProcessByImageName(kShouted.c_str())};
 
   ASSERT_TRUE(kResult.has_value()) << kResult.error().message();
   EXPECT_EQ(*kResult, GetCurrentProcessId());
 }
 
 TEST(RemoteLookupUnit, ReportsNoSuchProcessForAnUnknownName) {
-  constexpr PCWSTR kAbsentName{L"afw:no*such<process>.exe"};
+  constexpr PCWSTR kAbsentName{L"rgf:no*such<process>.exe"};
 
   const std::expected<DWORD, std::error_code> kResult{
-      afw::remote::FindProcessByImageName(kAbsentName)};
+      rgf::remote::FindProcessByImageName(kAbsentName)};
 
   ASSERT_FALSE(kResult.has_value());
   EXPECT_EQ(kResult.error(), std::make_error_code(std::errc::no_such_process));

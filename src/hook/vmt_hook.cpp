@@ -1,19 +1,19 @@
 #include <windows.h>
 
-#include <afw/hook/error.hpp>
-#include <afw/hook/vmt_hook.hpp>
-#include <afw/hook/vtable.hpp>
-#include <afw/win/error.hpp>
-#include <afw/win/protect_guard.hpp>
 #include <cstddef>
 #include <expected>
 #include <memory>
 #include <new>
+#include <rgf/hook/error.hpp>
+#include <rgf/hook/vmt_hook.hpp>
+#include <rgf/hook/vtable.hpp>
+#include <rgf/win/error.hpp>
+#include <rgf/win/protect_guard.hpp>
 #include <system_error>
 #include <tuple>
 #include <utility>
 
-namespace afw::hook {
+namespace rgf::hook {
 
 namespace {
 
@@ -146,4 +146,4 @@ std::expected<void, std::error_code> VmtHook::SwapSlot(void* value) noexcept {
   return guard->Restore();
 }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook

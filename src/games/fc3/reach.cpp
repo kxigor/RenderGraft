@@ -1,11 +1,11 @@
-#include <afw/games/fc3/internal/structs.hpp>
-#include <afw/games/fc3/trace.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <rgf/games/fc3/internal/structs.hpp>
+#include <rgf/games/fc3/trace.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -87,4 +87,4 @@ void ObserveReach(std::uintptr_t entity, const math::Vec3& eye,
   row.pending = TraceSegment(eye, point);
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

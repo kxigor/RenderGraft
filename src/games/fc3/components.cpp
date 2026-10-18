@@ -1,13 +1,13 @@
-#include <afw/games/fc3/internal/bones.hpp>
-#include <afw/games/fc3/internal/class_registry.hpp>
-#include <afw/games/fc3/internal/components.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/read.hpp>
 #include <cstdint>
 #include <optional>
+#include <rgf/games/fc3/internal/bones.hpp>
+#include <rgf/games/fc3/internal/class_registry.hpp>
+#include <rgf/games/fc3/internal/components.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -70,4 +70,4 @@ std::optional<math::Matrix4> ReadComponentWorldMatrix(
   return kComponent->transform;
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

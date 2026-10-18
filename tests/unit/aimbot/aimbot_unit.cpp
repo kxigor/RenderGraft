@@ -1,25 +1,25 @@
 #include <gtest/gtest.h>
 
-#include <afw/aimbot/aimbot.hpp>
 #include <cstdint>
 #include <numbers>
 #include <optional>
+#include <rgf/aimbot/aimbot.hpp>
 
 namespace {
 
-using afw::aimbot::AimPoint;
-using afw::aimbot::Choice;
-using afw::aimbot::ChooseTarget;
-using afw::aimbot::Limits;
-using afw::aimbot::RankFn;
-using afw::aimbot::Ranking;
-using afw::aimbot::Weights;
-using afw::games::fc3::EntityInfo;
-using afw::games::fc3::EntitySnapshot;
-using afw::games::fc3::PawnInfo;
-using afw::math::Angle;
-using afw::math::Ray;
-using afw::math::Vec3;
+using rgf::aimbot::AimPoint;
+using rgf::aimbot::Choice;
+using rgf::aimbot::ChooseTarget;
+using rgf::aimbot::Limits;
+using rgf::aimbot::RankFn;
+using rgf::aimbot::Ranking;
+using rgf::aimbot::Weights;
+using rgf::games::fc3::EntityInfo;
+using rgf::games::fc3::EntitySnapshot;
+using rgf::games::fc3::PawnInfo;
+using rgf::math::Angle;
+using rgf::math::Ray;
+using rgf::math::Vec3;
 
 constexpr float kPi{std::numbers::pi_v<float>};
 constexpr float kTolerance{1e-5F};
@@ -122,8 +122,8 @@ TEST(AimbotAimPoint, KeepsTheHeadWhenTheSkeletonGaveUpBoth) {
 // The score sums four terms, and the weights only mean what the menu's sliders
 // suggest while all four sit on the same 0..1 scale. Two of them are put there
 // by Limits::NearError and Limits::NearRange; the other two arrive from the
-// ranker exactly as it wrote them, and nothing checks or repairs that. Far Cry 3
-// holds the scale by accident of the user interface -- config::kMaxPriority
+// ranker exactly as it wrote them, and nothing checks or repairs that. Far Cry
+// 3 holds the scale by accident of the user interface -- config::kMaxPriority
 // bounds the slider and ReachOf answers 0 or 1 -- which is fine for one title
 // and invisible to the author of the next. This ranker answers on a scale a
 // hundred times wider, the way a binding with its own notion of priority might.
@@ -147,7 +147,7 @@ class AimbotChoice : public ::testing::Test {
     return Ray{.origin = eye_, .direction = kEast};
   }
 
-  [[nodiscard]] std::optional<afw::aimbot::Target> Pick(const Choice& choice,
+  [[nodiscard]] std::optional<rgf::aimbot::Target> Pick(const Choice& choice,
                                                         RankFn rank) const {
     return ChooseTarget(snapshot_, View(), choice, rank, nullptr);
   }
@@ -250,7 +250,8 @@ TEST_F(AimbotChoice, APriorityOffTheAgreedScaleOverrulesItsOwnWeight) {
   Add(0xB, Vec3{.x = 40.0F, .y = 0.2F, .z = 0.0F});
 
   // Aim is weighted a hundred times above priority, so priority can only ever
-  // break a tie -- as long as the ranker answers on the scale the weights assume.
+  // break a tie -- as long as the ranker answers on the scale the weights
+  // assume.
   const Weights kAimFirst{/*aim = */ 1.0F, /*distance = */ 0.0F,
                           /*priority = */ 0.01F, /*reach = */ 0.0F};
 
@@ -259,8 +260,8 @@ TEST_F(AimbotChoice, APriorityOffTheAgreedScaleOverrulesItsOwnWeight) {
   ASSERT_TRUE(kInScale.has_value());
   EXPECT_EQ(kInScale->entity, 0xBU);
 
-  // Same weights, same world, a ranker that answers 100 where the other answered
-  // 1: the term meant to break ties decides the whole thing instead.
+  // Same weights, same world, a ranker that answers 100 where the other
+  // answered 1: the term meant to break ties decides the whole thing instead.
   const auto kOffScale{Pick(Choice{Wide(), kAimFirst}, OffScaleFavourA)};
 
   ASSERT_TRUE(kOffScale.has_value());
@@ -297,12 +298,12 @@ TEST_F(AimbotChoice, ReachIsIgnoredWhenItCarriesNoWeight) {
 }
 
 // WantsReach() is what the injected build asks before spending a frame's worth
-// of traces: dll::UpdateReach returns early when it answers no, and ReachOf then
-// hands every entity the 1.0F it defaults to, so the term contributes the same
-// constant to every candidate and cannot change the pick. Weights arrive from
-// sliders the menu bounds below at zero, so "carries weight" and "is positive"
-// are the same question here, and it is asked with an ordering comparison --
-// this project never tests a float for equality.
+// of traces: dll::UpdateReach returns early when it answers no, and ReachOf
+// then hands every entity the 1.0F it defaults to, so the term contributes the
+// same constant to every candidate and cannot change the pick. Weights arrive
+// from sliders the menu bounds below at zero, so "carries weight" and "is
+// positive" are the same question here, and it is asked with an ordering
+// comparison -- this project never tests a float for equality.
 TEST_F(AimbotChoice, AnUnweightedReachDoesNotPayForTraces) {
   const Weights kNoReach{/*aim = */ 0.2F, /*distance = */ 0.0F,
                          /*priority = */ 0.0F, /*reach = */ 0.0F};

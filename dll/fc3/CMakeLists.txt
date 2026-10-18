@@ -1,7 +1,7 @@
 # =========================================================
 # FAR CRY 3 SHIM  (aimbot_fc3.dll)
 # =========================================================
-# The injectable Windows library for one title: DllMain hosting afw::app with
+# The injectable Windows library for one title: DllMain hosting rgf::app with
 # a games::fc3 binding behind it. Produces "aimbot_fc3.dll" (PREFIX "" strips
 # the MinGW "lib" prefix). The name carries the title because a second one will
 # sit beside it, and because the injector picks the library by name.
@@ -29,12 +29,12 @@ set_target_properties(aimbot_fc3 PROPERTIES
 
 target_link_libraries(aimbot_fc3
   PRIVATE
-    afw::aimbot
-    afw::app
-    afw::module
-    afw::games::fc3   # pulls in afw::process transitively
-    afw::esp          # world-to-screen boxes drawn from the frame callback
-    afw::win
+    rgf::aimbot
+    rgf::app
+    rgf::module
+    rgf::games::fc3   # pulls in rgf::process transitively
+    rgf::esp          # world-to-screen boxes drawn from the frame callback
+    rgf::win
 )
 
 # Dev-time interface targets are optional (see root CMakeLists).

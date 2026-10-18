@@ -1,16 +1,16 @@
 #include <windows.h>
 
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/module.hpp>
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/module.hpp>
-#include <afw/process/memory.hpp>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/module.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/module.hpp>
+#include <rgf/process/memory.hpp>
 #include <system_error>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -116,4 +116,4 @@ Diagnostics Diagnostics::Read() noexcept {
   return report;
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

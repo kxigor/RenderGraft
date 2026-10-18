@@ -1,16 +1,16 @@
 #include "injector.hpp"
 
-#include <afw/remote/remote.hpp>
-#include <afw/win/error.hpp>
-#include <afw/win/scoped_handle.hpp>
 #include <array>
 #include <cstdio>
 #include <cwchar>
 #include <expected>
 #include <filesystem>
+#include <rgf/remote/remote.hpp>
+#include <rgf/win/error.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <system_error>
 
-namespace afw::injector {
+namespace rgf::injector {
 namespace {
 
 [[nodiscard]] std::expected<std::filesystem::path, std::error_code>
@@ -75,4 +75,4 @@ int Run(const Target& target) {
   return 0;
 }
 
-}  // namespace afw::injector
+}  // namespace rgf::injector

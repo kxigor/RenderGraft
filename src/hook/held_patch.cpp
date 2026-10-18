@@ -1,9 +1,9 @@
-#include <afw/hook/held_patch.hpp>
 #include <expected>
+#include <rgf/hook/held_patch.hpp>
 #include <system_error>
 #include <utility>
 
-namespace afw::hook {
+namespace rgf::hook {
 
 void HeldPatch::Follow(bool wanted) noexcept {
   if (wanted == patch_.has_value()) {
@@ -20,4 +20,4 @@ void HeldPatch::Follow(bool wanted) noexcept {
   }
 }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook

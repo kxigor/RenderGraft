@@ -1,15 +1,15 @@
 #include <imgui.h>
 
-#include <afw/esp/internal/palette.hpp>
-#include <afw/esp/internal/panel.hpp>
-#include <afw/esp/internal/projection.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/games/fc3/internal/kind.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <rgf/esp/internal/palette.hpp>
+#include <rgf/esp/internal/panel.hpp>
+#include <rgf/esp/internal/projection.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/games/fc3/internal/kind.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -139,4 +139,4 @@ void ShowEntities(const math::Vec3& eye, const math::Vec3& forward) {
   ShowNearby(eye);
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

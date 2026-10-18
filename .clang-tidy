@@ -48,7 +48,7 @@ WarningsAsErrors: '*'
 #      specific header instead. That is a design decision, not a cleanup.
 #   -misc-non-private-member-variables-in-classes : it fires on any struct that
 #      has a method, and the types read straight out of the game's memory
-#      (afw::math Vec3, Aabb, Matrix4) must stay trivially copyable aggregates
+#      (rgf::math Vec3, Aabb, Matrix4) must stay trivially copyable aggregates
 #      -- private members would end that and take ReadAt with it. The
 #      cppcoreguidelines- variant of the same check is left on: it already
 #      ignores types whose members are all public, which is exactly this case.

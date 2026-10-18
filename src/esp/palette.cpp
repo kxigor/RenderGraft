@@ -1,9 +1,9 @@
-#include <afw/config/config.hpp>
-#include <afw/esp/internal/palette.hpp>
-#include <afw/games/fc3/internal/kind.hpp>
 #include <cstdint>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/internal/palette.hpp>
+#include <rgf/games/fc3/internal/kind.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -73,4 +73,4 @@ bool Shown(Kind kind) noexcept {
   }
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

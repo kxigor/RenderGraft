@@ -1,15 +1,15 @@
-#include <afw/games/fc3/internal/layout/module.hpp>
-#include <afw/games/fc3/internal/signatures.hpp>
-#include <afw/games/fc3/weapon.hpp>
-#include <afw/hook/patch.hpp>
-#include <afw/process/scan.hpp>
 #include <array>
 #include <cstdint>
 #include <expected>
+#include <rgf/games/fc3/internal/layout/module.hpp>
+#include <rgf/games/fc3/internal/signatures.hpp>
+#include <rgf/games/fc3/weapon.hpp>
+#include <rgf/hook/patch.hpp>
+#include <rgf/process/scan.hpp>
 #include <span>
 #include <system_error>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -60,4 +60,4 @@ std::expected<hook::CodePatch, std::error_code> IgnoreEmptyMagazine() noexcept {
   return PatchAt(kAmmoCheckSignature, kAmmoCheckPatchOffset, kNeverEmpty);
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

@@ -1,26 +1,26 @@
 #include "farcry3.hpp"
 
-#include <afw/abi/abi.hpp>
-#include <afw/app/detour_guard.hpp>
-#include <afw/app/scoped_hooks.hpp>
-#include <afw/config/config.hpp>
-#include <afw/esp/esp.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/hook/vmt_hook.hpp>
-#include <afw/hook/vtable.hpp>
-#include <afw/process/memory.hpp>
 #include <bit>
 #include <cstdint>
+#include <rgf/abi/abi.hpp>
+#include <rgf/app/detour_guard.hpp>
+#include <rgf/app/scoped_hooks.hpp>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/esp.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/hook/vmt_hook.hpp>
+#include <rgf/hook/vtable.hpp>
+#include <rgf/process/memory.hpp>
 
 #include "internal.hpp"
 
-namespace afw::dll {
+namespace rgf::dll {
 
 namespace {
 
 constexpr std::uint64_t kStatusInterval{1800};
 
-void AFW_ENGINE_CALL RunAllGroupDetour(void* scheduler) {
+void RGF_ENGINE_CALL RunAllGroupDetour(void* scheduler) {
   const app::DetourGuard kInside{};
 
   if (config::Current().espEnabled.load()) {
@@ -62,4 +62,4 @@ void FarCry3::OnFrame() noexcept {
   esp::DrawFrame();
 }
 
-}  // namespace afw::dll
+}  // namespace rgf::dll

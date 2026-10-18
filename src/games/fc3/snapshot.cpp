@@ -1,17 +1,17 @@
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/internal/snapshot.hpp>
-#include <afw/games/fc3/snapshot.hpp>
-#include <afw/process/memory.hpp>
 #include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/internal/snapshot.hpp>
+#include <rgf/games/fc3/snapshot.hpp>
+#include <rgf/process/memory.hpp>
 
 extern "C" {
-__declspec(dllexport) const void* afwSnapshot{nullptr};
+__declspec(dllexport) const void* rgfSnapshot{nullptr};
 }
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -119,7 +119,7 @@ void PublishCensus() noexcept {
         ReadySlot().exchange(PublishedIndex(), std::memory_order_acq_rel);
   }
 
-  afwSnapshot = &Buffers().at(PublishedIndex()).snapshot;
+  rgfSnapshot = &Buffers().at(PublishedIndex()).snapshot;
   ++PublishedFrames();
   GenerationWanted().store(true, std::memory_order_release);
 }
@@ -135,4 +135,4 @@ const EntitySnapshot& LastSnapshot() noexcept {
   return Buffers().at(PublishedIndex()).snapshot;
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

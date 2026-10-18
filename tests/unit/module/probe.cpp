@@ -2,23 +2,23 @@
 
 #include <windows.h>
 
-#include <afw/module/entry.hpp>
-#include <afw/win/scoped_handle.hpp>
 #include <atomic>
+#include <rgf/module/entry.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <stdexcept>
 #include <string>
 
 namespace {
 
-using afw::test::module_probe::Outcome;
+using rgf::test::module_probe::Outcome;
 
-constexpr Outcome kOutcome{AFW_MODULE_PROBE_THROWS != 0 ? Outcome::Throw
+constexpr Outcome kOutcome{RGF_MODULE_PROBE_THROWS != 0 ? Outcome::Throw
                                                         : Outcome::Return};
 constexpr DWORD kWaitMilliseconds{10000};
 std::atomic<DWORD> threadId{0};
 
 [[nodiscard]] HANDLE OpenProbeEvent(PCWSTR state) {
-  const std::wstring kName{afw::test::module_probe::EventName(kOutcome, state)};
+  const std::wstring kName{rgf::test::module_probe::EventName(kOutcome, state)};
   return OpenEventW(
       /*dwDesiredAccess = */ SYNCHRONIZE | EVENT_MODIFY_STATE,
       /*bInheritHandle  = */ FALSE,
@@ -44,9 +44,9 @@ class SignalOnExit {
 };
 
 void OnAttach() {
-  const afw::win::ScopedHandle kStarted{OpenProbeEvent(L"started")};
-  const afw::win::ScopedHandle kRelease{OpenProbeEvent(L"release")};
-  const afw::win::ScopedHandle kDestroyed{OpenProbeEvent(L"destroyed")};
+  const rgf::win::ScopedHandle kStarted{OpenProbeEvent(L"started")};
+  const rgf::win::ScopedHandle kRelease{OpenProbeEvent(L"release")};
+  const rgf::win::ScopedHandle kDestroyed{OpenProbeEvent(L"destroyed")};
   if (!kStarted || !kRelease || !kDestroyed) {
     throw std::runtime_error{"could not open the module probe events"};
   }
@@ -68,8 +68,8 @@ void OnAttach() {
 
 }  // namespace
 
-extern "C" DWORD AfwModuleProbeThreadId() noexcept { return threadId.load(); }
+extern "C" DWORD RgfModuleProbeThreadId() noexcept { return threadId.load(); }
 
 BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID /*reserved*/) {
-  return afw::module::DllEntry(instance, reason, &OnAttach);
+  return rgf::module::DllEntry(instance, reason, &OnAttach);
 }

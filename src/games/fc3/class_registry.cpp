@@ -1,20 +1,20 @@
-#include <afw/abi/abi.hpp>
-#include <afw/games/fc3/internal/class_registry.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/module.hpp>
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/module.hpp>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <optional>
+#include <rgf/abi/abi.hpp>
+#include <rgf/games/fc3/internal/class_registry.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/module.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/module.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
-using DescriptorFn = void*(AFW_ENGINE_CALL*)(void* self);
+using DescriptorFn = void*(RGF_ENGINE_CALL*)(void* self);
 
 [[nodiscard]] std::optional<std::uint32_t> OwnHash(
     std::uintptr_t classDef) noexcept {
@@ -179,4 +179,4 @@ bool IsEntityClass(std::uintptr_t address) noexcept {
   return EntityProbe().Matches(address);
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

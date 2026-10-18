@@ -1,16 +1,16 @@
 #include <imgui.h>
 
-#include <afw/config/config.hpp>
-#include <afw/esp/esp.hpp>
-#include <afw/esp/internal/draw.hpp>
-#include <afw/esp/internal/panel.hpp>
-#include <afw/esp/internal/projection.hpp>
-#include <afw/games/fc3/fc3.hpp>
 #include <expected>
 #include <optional>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/esp.hpp>
+#include <rgf/esp/internal/draw.hpp>
+#include <rgf/esp/internal/panel.hpp>
+#include <rgf/esp/internal/projection.hpp>
+#include <rgf/games/fc3/fc3.hpp>
 #include <system_error>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -116,4 +116,4 @@ void DrawFrame() noexcept {
   DrawCrosshair(kMarkers.ahead, kAheadColour);
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

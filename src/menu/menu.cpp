@@ -2,9 +2,9 @@
 #include <imgui_impl_win32.h>
 #include <windows.h>
 
-#include <afw/config/config.hpp>
-#include <afw/menu/menu.hpp>
 #include <atomic>
+#include <rgf/config/config.hpp>
+#include <rgf/menu/menu.hpp>
 
 // NOLINTNEXTLINE(readability-identifier-naming)
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd,
@@ -12,7 +12,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd,
                                                              WPARAM wParam,
                                                              LPARAM lParam);
 
-namespace afw::menu {
+namespace rgf::menu {
 
 namespace {
 
@@ -141,7 +141,7 @@ void Draw() noexcept {
       /*lpRect = */ nullptr);
 
   ImGui::SetNextWindowSize(ImVec2{kWidth, kHeight}, ImGuiCond_FirstUseEver);
-  ImGui::Begin("AimbotFramework", &settings.menuVisible);
+  ImGui::Begin("RenderGraft", &settings.menuVisible);
 
   ImGui::Text("%.1f FPS", static_cast<double>(ImGui::GetIO().Framerate));
   ImGui::SeparatorText("features");
@@ -189,4 +189,4 @@ bool HandleMessage(HWND window, UINT message, WPARAM wParam,
   return settings.menuVisible && IsInput(message);
 }
 
-}  // namespace afw::menu
+}  // namespace rgf::menu

@@ -1,11 +1,11 @@
-#include <afw/core/error.hpp>
-#include <afw/games/fc3/error.hpp>
+#include <rgf/core/error.hpp>
+#include <rgf/games/fc3/error.hpp>
 #include <string>
 #include <system_error>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
-const char* CategoryName(Error /*tag*/) { return "afw::games::fc3"; }
+const char* CategoryName(Error /*tag*/) { return "rgf::games::fc3"; }
 
 std::string Describe(Error error) {
   switch (error) {
@@ -20,7 +20,7 @@ std::string Describe(Error error) {
              "the forward vector is not unit length, or the field of view "
              "is out of range";
     default:
-      return "unknown afw::games::fc3 error";
+      return "unknown rgf::games::fc3 error";
   }
 }
 
@@ -31,4 +31,4 @@ std::error_code make_error_code(Error error) {
   return core::MakeErrorCode(error);
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

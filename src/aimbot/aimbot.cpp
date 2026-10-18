@@ -1,11 +1,11 @@
-#include <afw/aimbot/aimbot.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/math/direction.hpp>
-#include <afw/math/ray.hpp>
-#include <afw/math/vec3.hpp>
 #include <optional>
+#include <rgf/aimbot/aimbot.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/math/direction.hpp>
+#include <rgf/math/ray.hpp>
+#include <rgf/math/vec3.hpp>
 
-namespace afw::aimbot {
+namespace rgf::aimbot {
 
 math::Vec3 AimPoint(const games::fc3::EntityInfo& entity) noexcept {
   if (entity.head) {
@@ -72,4 +72,4 @@ std::optional<Target> ChooseTarget(const games::fc3::EntitySnapshot& snapshot,
   return best;
 }
 
-}  // namespace afw::aimbot
+}  // namespace rgf::aimbot

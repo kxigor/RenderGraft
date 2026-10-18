@@ -1,16 +1,16 @@
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/module.hpp>
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/internal/structs.hpp>
-#include <afw/games/fc3/module.hpp>
-#include <afw/games/fc3/trace.hpp>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <optional>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/module.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/internal/structs.hpp>
+#include <rgf/games/fc3/module.hpp>
+#include <rgf/games/fc3/trace.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -151,4 +151,4 @@ std::optional<TraceAnswer> TraceLook(int query) noexcept {
   return TraceAnswer{.hits = *kCount, .first = *kFirst};
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

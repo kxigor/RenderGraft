@@ -1,13 +1,13 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/hook/error.hpp>
-#include <afw/hook/vmt_hook.hpp>
-#include <afw/hook/vtable.hpp>
 #include <bit>
 #include <cstddef>
 #include <expected>
 #include <memory>
+#include <rgf/hook/error.hpp>
+#include <rgf/hook/vmt_hook.hpp>
+#include <rgf/hook/vtable.hpp>
 #include <support/win_probe.hpp>
 #include <system_error>
 
@@ -64,8 +64,8 @@ class VmtHookUnit : public ::testing::Test {
 }  // namespace
 
 TEST_F(VmtHookUnit, CreatePublishesTheOriginalWithoutTouchingTheSlot) {
-  const std::expected<afw::hook::VmtHook, std::error_code> kHook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  const std::expected<rgf::hook::VmtHook, std::error_code> kHook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
 
   ASSERT_TRUE(kHook.has_value()) << kHook.error().message();
   EXPECT_EQ(kHook->Original<ProbeFn>()(), 1);
@@ -89,19 +89,19 @@ TEST_F(VmtHookUnit, CreateRejectsAnUnreadableSlot) {
     unmapped = static_cast<void**>(kReserved);
   }
 
-  const std::expected<afw::hook::VmtHook, std::error_code> kHook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{unmapped}, kSlot)};
+  const std::expected<rgf::hook::VmtHook, std::error_code> kHook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{unmapped}, kSlot)};
 
   ASSERT_FALSE(kHook.has_value());
   EXPECT_EQ(kHook.error(),
-            afw::hook::make_error_code(afw::hook::Error::SlotNotReadable));
-  EXPECT_EQ(&kHook.error().category(), &afw::hook::ErrorCategory());
+            rgf::hook::make_error_code(rgf::hook::Error::SlotNotReadable));
+  EXPECT_EQ(&kHook.error().category(), &rgf::hook::ErrorCategory());
 }
 
 TEST_F(VmtHookUnit, CreateDynamicPublishesTheSameOriginalOnTheHeap) {
-  const std::expected<std::unique_ptr<afw::hook::VmtHook>, std::error_code>
+  const std::expected<std::unique_ptr<rgf::hook::VmtHook>, std::error_code>
       kHook{
-          afw::hook::VmtHook::CreateDynamic(afw::hook::Vtable{table_}, kSlot)};
+          rgf::hook::VmtHook::CreateDynamic(rgf::hook::Vtable{table_}, kSlot)};
 
   ASSERT_TRUE(kHook.has_value()) << kHook.error().message();
   ASSERT_NE(kHook->get(), nullptr);
@@ -126,18 +126,18 @@ TEST_F(VmtHookUnit, CreateDynamicRejectsAnUnreadableSlotTheSameWay) {
     unmapped = static_cast<void**>(kReserved);
   }
 
-  const std::expected<std::unique_ptr<afw::hook::VmtHook>, std::error_code>
-      kHook{afw::hook::VmtHook::CreateDynamic(afw::hook::Vtable{unmapped},
+  const std::expected<std::unique_ptr<rgf::hook::VmtHook>, std::error_code>
+      kHook{rgf::hook::VmtHook::CreateDynamic(rgf::hook::Vtable{unmapped},
                                               kSlot)};
 
   ASSERT_FALSE(kHook.has_value());
   EXPECT_EQ(kHook.error(),
-            afw::hook::make_error_code(afw::hook::Error::SlotNotReadable));
+            rgf::hook::make_error_code(rgf::hook::Error::SlotNotReadable));
 }
 
 TEST_F(VmtHookUnit, SetDetourDoesNotTouchTheSlot) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
 
   const std::expected<void, std::error_code> kSet{hook->SetDetour(&DetourFn)};
@@ -147,8 +147,8 @@ TEST_F(VmtHookUnit, SetDetourDoesNotTouchTheSlot) {
 }
 
 TEST_F(VmtHookUnit, EnableRedirectsTheSlotToTheDetour) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
   ASSERT_EQ(CallSlot(), 1);
@@ -161,20 +161,20 @@ TEST_F(VmtHookUnit, EnableRedirectsTheSlotToTheDetour) {
 }
 
 TEST_F(VmtHookUnit, EnableLeavesThePageProtectionAsItFoundIt) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
 
   ASSERT_TRUE(hook->Enable().has_value());
 
-  EXPECT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+  EXPECT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                              PAGE_READONLY));
 }
 
 TEST_F(VmtHookUnit, DisableRestoresTheOriginal) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
   ASSERT_TRUE(hook->Enable().has_value());
@@ -188,8 +188,8 @@ TEST_F(VmtHookUnit, DisableRestoresTheOriginal) {
 
 TEST_F(VmtHookUnit, DestructorRestoresTheOriginal) {
   {
-    std::expected<afw::hook::VmtHook, std::error_code> hook{
-        afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+    std::expected<rgf::hook::VmtHook, std::error_code> hook{
+        rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
     ASSERT_TRUE(hook.has_value()) << hook.error().message();
     ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
     ASSERT_TRUE(hook->Enable().has_value());
@@ -200,21 +200,21 @@ TEST_F(VmtHookUnit, DestructorRestoresTheOriginal) {
 }
 
 TEST_F(VmtHookUnit, EnableWithoutADetourReportsDetourNotSet) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
 
   const std::expected<void, std::error_code> kEnabled{hook->Enable()};
 
   ASSERT_FALSE(kEnabled.has_value());
   EXPECT_EQ(kEnabled.error(),
-            afw::hook::make_error_code(afw::hook::Error::DetourNotSet));
+            rgf::hook::make_error_code(rgf::hook::Error::DetourNotSet));
   EXPECT_EQ(CallSlot(), 1);
 }
 
 TEST_F(VmtHookUnit, EnableTwiceReportsHookAlreadyApplied) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
   ASSERT_TRUE(hook->Enable().has_value());
@@ -223,13 +223,13 @@ TEST_F(VmtHookUnit, EnableTwiceReportsHookAlreadyApplied) {
 
   ASSERT_FALSE(kSecond.has_value());
   EXPECT_EQ(kSecond.error(),
-            afw::hook::make_error_code(afw::hook::Error::HookAlreadyApplied));
+            rgf::hook::make_error_code(rgf::hook::Error::HookAlreadyApplied));
   EXPECT_EQ(CallSlot(), 2);
 }
 
 TEST_F(VmtHookUnit, SetDetourWhileEnabledReportsHookAlreadyApplied) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
   ASSERT_TRUE(hook->Enable().has_value());
@@ -239,14 +239,14 @@ TEST_F(VmtHookUnit, SetDetourWhileEnabledReportsHookAlreadyApplied) {
 
   ASSERT_FALSE(kSet.has_value());
   EXPECT_EQ(kSet.error(),
-            afw::hook::make_error_code(afw::hook::Error::HookAlreadyApplied));
+            rgf::hook::make_error_code(rgf::hook::Error::HookAlreadyApplied));
   EXPECT_EQ(CallSlot(), 2);
   EXPECT_EQ(hook->Original<ProbeFn>()(), 1);
 }
 
 TEST_F(VmtHookUnit, DisableWithoutEnableReportsHookNotApplied) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
 
@@ -254,13 +254,13 @@ TEST_F(VmtHookUnit, DisableWithoutEnableReportsHookNotApplied) {
 
   ASSERT_FALSE(kDisabled.has_value());
   EXPECT_EQ(kDisabled.error(),
-            afw::hook::make_error_code(afw::hook::Error::HookNotApplied));
+            rgf::hook::make_error_code(rgf::hook::Error::HookNotApplied));
   EXPECT_EQ(CallSlot(), 1);
 }
 
 TEST_F(VmtHookUnit, EnableAfterDisableHooksAgain) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
   ASSERT_TRUE(hook->Enable().has_value());
@@ -272,8 +272,8 @@ TEST_F(VmtHookUnit, EnableAfterDisableHooksAgain) {
 }
 
 TEST_F(VmtHookUnit, SetDetourAfterDisableReplacesTheDetour) {
-  std::expected<afw::hook::VmtHook, std::error_code> hook{
-      afw::hook::VmtHook::Create(afw::hook::Vtable{table_}, kSlot)};
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
   ASSERT_TRUE(hook.has_value()) << hook.error().message();
   ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
   ASSERT_TRUE(hook->Enable().has_value());

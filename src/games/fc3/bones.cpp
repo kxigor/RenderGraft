@@ -1,12 +1,12 @@
-#include <afw/games/fc3/internal/bones.hpp>
-#include <afw/games/fc3/internal/components.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/read.hpp>
 #include <cstdint>
 #include <optional>
+#include <rgf/games/fc3/internal/bones.hpp>
+#include <rgf/games/fc3/internal/components.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 std::optional<BoneTable> BonesOf(std::uintptr_t component) noexcept {
   const Engine kComponent{component};
@@ -87,4 +87,4 @@ BonePoints ReadBonePoints(std::uintptr_t address) noexcept {
   return BonePoints{.head = kHead, .body = body};
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

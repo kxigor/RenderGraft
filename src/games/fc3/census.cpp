@@ -1,23 +1,23 @@
-#include <afw/games/fc3/census.hpp>
-#include <afw/games/fc3/internal/agent.hpp>
-#include <afw/games/fc3/internal/bones.hpp>
-#include <afw/games/fc3/internal/class_registry.hpp>
-#include <afw/games/fc3/internal/components.hpp>
-#include <afw/games/fc3/internal/entity.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/module.hpp>
-#include <afw/games/fc3/internal/read.hpp>
-#include <afw/games/fc3/internal/snapshot.hpp>
-#include <afw/games/fc3/module.hpp>
-#include <afw/games/fc3/snapshot.hpp>
-#include <afw/process/memory.hpp>
 #include <bit>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <rgf/games/fc3/census.hpp>
+#include <rgf/games/fc3/internal/agent.hpp>
+#include <rgf/games/fc3/internal/bones.hpp>
+#include <rgf/games/fc3/internal/class_registry.hpp>
+#include <rgf/games/fc3/internal/components.hpp>
+#include <rgf/games/fc3/internal/entity.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/module.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
+#include <rgf/games/fc3/internal/snapshot.hpp>
+#include <rgf/games/fc3/module.hpp>
+#include <rgf/games/fc3/snapshot.hpp>
+#include <rgf/process/memory.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -161,4 +161,4 @@ void TakeCensus(std::uintptr_t scheduler) noexcept {
   snapshot.regionHits = kStats.hits;
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

@@ -1,14 +1,14 @@
-#include <afw/games/fc3/internal/components.hpp>
-#include <afw/games/fc3/internal/entity.hpp>
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/read.hpp>
 #include <cmath>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <rgf/games/fc3/internal/components.hpp>
+#include <rgf/games/fc3/internal/entity.hpp>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -88,4 +88,4 @@ std::expected<EntityInfo, Rejection> Classify(const RawEntity& raw) noexcept {
                     .humanoid = IsHumanoid(raw.box)};
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

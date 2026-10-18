@@ -1,11 +1,11 @@
-#include <afw/games/fc3/internal/layout.hpp>
-#include <afw/games/fc3/internal/limits.hpp>
-#include <afw/games/fc3/internal/pawn.hpp>
-#include <afw/games/fc3/internal/read.hpp>
 #include <cstdint>
 #include <optional>
+#include <rgf/games/fc3/internal/layout.hpp>
+#include <rgf/games/fc3/internal/limits.hpp>
+#include <rgf/games/fc3/internal/pawn.hpp>
+#include <rgf/games/fc3/internal/read.hpp>
 
-namespace afw::games::fc3 {
+namespace rgf::games::fc3 {
 
 namespace {
 
@@ -84,4 +84,4 @@ std::optional<PawnInfo> ReadAgent(std::uintptr_t agent,
   return pawn;
 }
 
-}  // namespace afw::games::fc3
+}  // namespace rgf::games::fc3

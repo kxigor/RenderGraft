@@ -4,17 +4,17 @@
 #include <tlhelp32.h>
 // clang-format on
 
-#include <afw/remote/error.hpp>
-#include <afw/remote/remote.hpp>
-#include <afw/win/error.hpp>
-#include <afw/win/remote_memory.hpp>
-#include <afw/win/scoped_handle.hpp>
 #include <cwchar>
 #include <expected>
+#include <rgf/remote/error.hpp>
+#include <rgf/remote/remote.hpp>
+#include <rgf/win/error.hpp>
+#include <rgf/win/remote_memory.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <system_error>
 #include <tuple>
 
-namespace afw::remote {
+namespace rgf::remote {
 
 std::expected<DWORD, std::error_code> FindProcessByImageName(PCWSTR imageName) {
   const win::ScopedHandle kSnapshot{CreateToolhelp32Snapshot(
@@ -162,4 +162,4 @@ std::expected<void, std::error_code> InjectLibrary(HANDLE proc, PCWSTR dllPath,
   return {};
 }
 
-}  // namespace afw::remote
+}  // namespace rgf::remote

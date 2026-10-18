@@ -1,18 +1,18 @@
 #include <imgui.h>
 
-#include <afw/config/config.hpp>
-#include <afw/esp/internal/draw.hpp>
-#include <afw/esp/internal/palette.hpp>
-#include <afw/esp/internal/projection.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/games/fc3/internal/kind.hpp>
-#include <afw/math/angle.hpp>
 #include <array>
 #include <cstdint>
 #include <cstdio>
 #include <optional>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/internal/draw.hpp>
+#include <rgf/esp/internal/palette.hpp>
+#include <rgf/esp/internal/projection.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/games/fc3/internal/kind.hpp>
+#include <rgf/math/angle.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -163,4 +163,4 @@ void DrawEntities(const math::Vec3& eye, const math::Matrix4& projection,
   }
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

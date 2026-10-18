@@ -1,14 +1,14 @@
 #include <imgui.h>
 
-#include <afw/esp/internal/panel.hpp>
-#include <afw/esp/internal/projection.hpp>
-#include <afw/games/fc3/fc3.hpp>
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <rgf/esp/internal/panel.hpp>
+#include <rgf/esp/internal/projection.hpp>
+#include <rgf/games/fc3/fc3.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -100,4 +100,4 @@ void ShowPools(const math::Vec3& eye) {
   ImGui::Text("%-18s %u  of %u", "within range", nearby, kSnapshot.count);
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

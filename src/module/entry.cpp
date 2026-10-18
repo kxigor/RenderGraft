@@ -1,7 +1,7 @@
-#include <afw/module/entry.hpp>
-#include <afw/win/scoped_handle.hpp>
+#include <rgf/module/entry.hpp>
+#include <rgf/win/scoped_handle.hpp>
 
-namespace afw::module {
+namespace rgf::module {
 
 namespace {
 
@@ -14,7 +14,7 @@ DWORD WINAPI RunModule(LPVOID parameter) {
   try {
     AttachHandler()();
   } catch (...) {
-    OutputDebugStringA("[afw] module callback failed; DLL remains loaded\n");
+    OutputDebugStringA("[rgf] module callback failed; DLL remains loaded\n");
     return ERROR_UNHANDLED_EXCEPTION;
   }
 
@@ -45,4 +45,4 @@ BOOL DllEntry(HMODULE self, DWORD reason, AttachCallback onAttach) noexcept {
   return kThread ? TRUE : FALSE;
 }
 
-}  // namespace afw::module
+}  // namespace rgf::module

@@ -1,17 +1,17 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/module/entry.hpp>
-#include <afw/win/scoped_handle.hpp>
 #include <array>
 #include <bit>
+#include <rgf/module/entry.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <support/win_probe.hpp>
 
 #include "probe.hpp"
 
 namespace {
 
-using afw::test::module_probe::Outcome;
+using rgf::test::module_probe::Outcome;
 
 constexpr DWORD kWaitMilliseconds{10000};
 int callbackCalls{0};
@@ -39,14 +39,14 @@ class ReleaseOnExit {
 };
 
 [[nodiscard]] HANDLE CreateProbeEvent(Outcome outcome, PCWSTR state) {
-  return afw::test::CreateProbeEvent(
-      afw::test::module_probe::EventName(outcome, state));
+  return rgf::test::CreateProbeEvent(
+      rgf::test::module_probe::EventName(outcome, state));
 }
 
 void ExerciseCallback(PCWSTR path, Outcome outcome) {
-  const afw::win::ScopedHandle kStarted{CreateProbeEvent(outcome, L"started")};
-  const afw::win::ScopedHandle kRelease{CreateProbeEvent(outcome, L"release")};
-  const afw::win::ScopedHandle kDestroyed{
+  const rgf::win::ScopedHandle kStarted{CreateProbeEvent(outcome, L"started")};
+  const rgf::win::ScopedHandle kRelease{CreateProbeEvent(outcome, L"release")};
+  const rgf::win::ScopedHandle kDestroyed{
       CreateProbeEvent(outcome, L"destroyed")};
   ASSERT_TRUE(static_cast<bool>(kStarted));
   ASSERT_TRUE(static_cast<bool>(kRelease));
@@ -62,9 +62,9 @@ void ExerciseCallback(PCWSTR path, Outcome outcome) {
             WAIT_OBJECT_0);
 
   const auto kThreadId{
-      std::bit_cast<afw::test::module_probe::ThreadIdFn>(GetProcAddress(
+      std::bit_cast<rgf::test::module_probe::ThreadIdFn>(GetProcAddress(
           /*hModule    = */ kModule,
-          /*lpProcName = */ "AfwModuleProbeThreadId"))};
+          /*lpProcName = */ "RgfModuleProbeThreadId"))};
   ASSERT_NE(kThreadId, nullptr);
   const DWORD kWorkerId{kThreadId()};
   ASSERT_NE(kWorkerId, 0);
@@ -72,7 +72,7 @@ void ExerciseCallback(PCWSTR path, Outcome outcome) {
 
   // Open before releasing: a thread ID alone cannot prove that self-unload has
   // finished, and a terminated thread ID may be reused.
-  const afw::win::ScopedHandle kWorker{OpenThread(
+  const rgf::win::ScopedHandle kWorker{OpenThread(
       /*dwDesiredAccess = */ SYNCHRONIZE | THREAD_QUERY_LIMITED_INFORMATION,
       /*bInheritHandle  = */ FALSE,
       /*dwThreadId      = */ kWorkerId)};
@@ -111,11 +111,11 @@ void ExerciseCallback(PCWSTR path, Outcome outcome) {
 }  // namespace
 
 TEST(ModuleEntryUnit, CallbackLocalsAreDestroyedBeforeTheWorkerUnloadsTheDll) {
-  ExerciseCallback(AFW_MODULE_RETURN_PROBE_PATH, Outcome::Return);
+  ExerciseCallback(RGF_MODULE_RETURN_PROBE_PATH, Outcome::Return);
 }
 
 TEST(ModuleEntryUnit, CallbackExceptionUnwindsLocalsAndRetainsTheDll) {
-  ExerciseCallback(AFW_MODULE_THROW_PROBE_PATH, Outcome::Throw);
+  ExerciseCallback(RGF_MODULE_THROW_PROBE_PATH, Outcome::Throw);
 }
 
 TEST(ModuleEntryUnit, OtherNotificationsDoNotRunTheCallback) {
@@ -123,7 +123,7 @@ TEST(ModuleEntryUnit, OtherNotificationsDoNotRunTheCallback) {
   constexpr std::array<DWORD, 3> kReasons{DLL_THREAD_ATTACH, DLL_THREAD_DETACH,
                                           DLL_PROCESS_DETACH};
   for (const DWORD kReason : kReasons) {
-    EXPECT_EQ(afw::module::DllEntry(nullptr, kReason, &CountAttach), TRUE);
+    EXPECT_EQ(rgf::module::DllEntry(nullptr, kReason, &CountAttach), TRUE);
   }
   EXPECT_EQ(callbackCalls, 0);
 }
@@ -132,7 +132,7 @@ TEST(ModuleEntryUnit, RejectsProcessAttachWithoutAModuleHandle) {
   callbackCalls = 0;
   SetLastError(/*dwErrCode = */ ERROR_SUCCESS);
 
-  EXPECT_EQ(afw::module::DllEntry(nullptr, DLL_PROCESS_ATTACH, &CountAttach),
+  EXPECT_EQ(rgf::module::DllEntry(nullptr, DLL_PROCESS_ATTACH, &CountAttach),
             FALSE);
   EXPECT_EQ(GetLastError(), static_cast<DWORD>(ERROR_INVALID_PARAMETER));
   EXPECT_EQ(callbackCalls, 0);
@@ -143,6 +143,6 @@ TEST(ModuleEntryUnit, RejectsProcessAttachWithoutACallback) {
   ASSERT_NE(kSelf, nullptr);
   SetLastError(/*dwErrCode = */ ERROR_SUCCESS);
 
-  EXPECT_EQ(afw::module::DllEntry(kSelf, DLL_PROCESS_ATTACH, nullptr), FALSE);
+  EXPECT_EQ(rgf::module::DllEntry(kSelf, DLL_PROCESS_ATTACH, nullptr), FALSE);
   EXPECT_EQ(GetLastError(), static_cast<DWORD>(ERROR_INVALID_PARAMETER));
 }

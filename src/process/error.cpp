@@ -1,11 +1,11 @@
-#include <afw/core/error.hpp>
-#include <afw/process/error.hpp>
+#include <rgf/core/error.hpp>
+#include <rgf/process/error.hpp>
 #include <string>
 #include <system_error>
 
-namespace afw::process {
+namespace rgf::process {
 
-const char* CategoryName(Error /*tag*/) { return "afw::process"; }
+const char* CategoryName(Error /*tag*/) { return "rgf::process"; }
 
 std::string Describe(Error error) {
   switch (error) {
@@ -22,7 +22,7 @@ std::string Describe(Error error) {
     case Error::PatternNotFound:
       return "the signature does not occur in the module";
     default:
-      return "unknown afw::process error";
+      return "unknown rgf::process error";
   }
 }
 
@@ -33,4 +33,4 @@ std::error_code make_error_code(Error error) {
   return core::MakeErrorCode(error);
 }
 
-}  // namespace afw::process
+}  // namespace rgf::process

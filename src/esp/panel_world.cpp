@@ -1,15 +1,15 @@
 #include <imgui.h>
 
-#include <afw/esp/internal/panel.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/math/angle.hpp>
-#include <afw/render/overlay.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <rgf/esp/internal/panel.hpp>
+#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/math/angle.hpp>
+#include <rgf/render/overlay.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -138,4 +138,4 @@ void ShowMarkers(const ImVec2& display,
   ShowPoint("right 2m at 10m", probe);
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

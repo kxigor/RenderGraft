@@ -14,24 +14,24 @@
       "description": "Configure from an MSYS2 UCRT64 shell (cmake/ninja/clang live there).",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "AFW_BUILD_TESTS": "ON",
-        "AFW_BUILD_DLL": "ON"
+        "RGF_BUILD_TESTS": "ON",
+        "RGF_BUILD_DLL": "ON"
       }
     },
     {
       "name": "base-x86",
       "hidden": true,
       "inherits": ["base"],
-      "description": "Everything the 32-bit presets share. The MINGW32 toolchain goes on PATH here rather than being left to the shell: started from a UCRT64 prompt the link step picks up the wrong runtime and dies with a bare 'FAILED: [code=1]' carrying no diagnostic at all. AFW_TARGET_POINTER_SIZE makes a wrong toolchain a configure error instead of a silent 64-bit build. The lint gate stays off because clang-format and clang-tidy do not depend on the target architecture, and the 64-bit presets already run them.",
+      "description": "Everything the 32-bit presets share. The MINGW32 toolchain goes on PATH here rather than being left to the shell: started from a UCRT64 prompt the link step picks up the wrong runtime and dies with a bare 'FAILED: [code=1]' carrying no diagnostic at all. RGF_TARGET_POINTER_SIZE makes a wrong toolchain a configure error instead of a silent 64-bit build. The lint gate stays off because clang-format and clang-tidy do not depend on the target architecture, and the 64-bit presets already run them.",
       "environment": {
         "PATH": "C:/msys64/mingw32/bin;$penv{PATH}",
         "MSYSTEM": "MINGW32"
       },
       "cacheVariables": {
         "SANITIZER_MODE": "None",
-        "AFW_TARGET_POINTER_SIZE": "4",
-        "AFW_ENABLE_FORMAT_CHECK": "OFF",
-        "AFW_ENABLE_TIDY_CHECK": "OFF"
+        "RGF_TARGET_POINTER_SIZE": "4",
+        "RGF_ENABLE_FORMAT_CHECK": "OFF",
+        "RGF_ENABLE_TIDY_CHECK": "OFF"
       }
     },
 
@@ -76,9 +76,9 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "SANITIZER_MODE": "None",
-        "AFW_ENABLE_COVERAGE": "ON",
-        "AFW_ENABLE_FORMAT_CHECK": "OFF",
-        "AFW_ENABLE_TIDY_CHECK": "OFF"
+        "RGF_ENABLE_COVERAGE": "ON",
+        "RGF_ENABLE_FORMAT_CHECK": "OFF",
+        "RGF_ENABLE_TIDY_CHECK": "OFF"
       }
     },
     {
@@ -98,7 +98,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "SANITIZER_MODE": "None",
-        "AFW_BUILD_TESTS": "OFF"
+        "RGF_BUILD_TESTS": "OFF"
       }
     },
 
@@ -127,7 +127,7 @@
       "inherits": ["base-x86"],
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
-        "AFW_BUILD_TESTS": "OFF"
+        "RGF_BUILD_TESTS": "OFF"
       }
     }
   ],
