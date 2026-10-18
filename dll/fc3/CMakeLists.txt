@@ -30,10 +30,11 @@ set_target_properties(aimbot_fc3 PROPERTIES
 target_link_libraries(aimbot_fc3
   PRIVATE
     afw::aimbot
-    afw::app          # the session: overlay, input, unload; pulls in afw::hook
+    afw::app
+    afw::module
     afw::games::fc3   # pulls in afw::process transitively
     afw::esp          # world-to-screen boxes drawn from the frame callback
-    afw::win          # RAII wrappers (ScopedHandle) used in DllMain
+    afw::win
 )
 
 # Dev-time interface targets are optional (see root CMakeLists).

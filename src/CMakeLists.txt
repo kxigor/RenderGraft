@@ -21,7 +21,6 @@
 # esp are siblings on top of render, sharing state only through config, so
 # neither one requires the other to run. afw::app sits on top of render and
 # menu and knows no game; the DLL shim supplies one through afw::app::Game.
-# None contains a Windows entry point.
 #
 # WHAT IS NOT YET TITLE-NEUTRAL, stated plainly so a second title does not
 # discover it the hard way:
@@ -51,6 +50,7 @@ add_subdirectory(math)
 # on it, are Windows-only too.
 if(WIN32)
   add_subdirectory(win)
+  add_subdirectory(module)
   add_subdirectory(remote)
   add_subdirectory(hook)
   add_subdirectory(process)

@@ -81,6 +81,7 @@ CMakeUserPresets.json
 # Editor / tooling
 .claude/
 CLAUDE.md
+/AGENTS.md
 PLAN.md
 
 # VSCODE
@@ -92,3 +93,6 @@ PLAN.md
 
 # Local agent memory imported from Claude
 .agent-context/
+
+# Local diploma context
+/AimbotFramework-diploma-context.md

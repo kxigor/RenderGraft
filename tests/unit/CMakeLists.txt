@@ -4,6 +4,7 @@ add_subdirectory(math)
 
 if(WIN32)
   add_subdirectory(win)
+  add_subdirectory(module)
   add_subdirectory(remote)
   add_subdirectory(hook)
   add_subdirectory(process)

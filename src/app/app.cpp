@@ -5,7 +5,6 @@
 #include <afw/app/fault.hpp>
 #include <afw/app/game.hpp>
 #include <afw/app/log.hpp>
-#include <afw/app/module.hpp>
 #include <afw/app/scoped_hooks.hpp>
 #include <afw/config/config.hpp>
 #include <afw/hook/hook.hpp>
@@ -18,9 +17,8 @@
 #include <afw/render/dxgi/probe.hpp>
 #include <afw/render/overlay.hpp>
 #include <afw/win/scoped_handle.hpp>
-#include <array>
 #include <atomic>
-#include <cstddef>
+#include <exception>
 #include <expected>
 #include <system_error>
 
@@ -195,23 +193,19 @@ void Run(Game& game) noexcept {
 
   {
     const FaultLogger kFaults{};
-    RunSession(game);
+    try {
+      RunSession(game);
+    } catch (const std::exception& error) {
+      Logf("[aimbot] session failed: %s\n", error.what());
+    } catch (...) {
+      Log("[aimbot] session failed with an unknown exception\n");
+    }
   }
 
   WaitForDetours();
   CurrentGame().store(nullptr);
   render::ShutdownOverlay();
-  Log("[aimbot] unloaded\n");
-
-  const HMODULE kSelf{SelfModule()};
-  if (kSelf != nullptr) {
-    FreeLibraryAndExitThread(
-        /*hLibModule = */ kSelf,
-        /*dwExitCode = */ 0);
-  }
-
-  ExitThread(
-      /*dwExitCode = */ 0);
+  Log("[aimbot] session stopped\n");
 }
 
 }  // namespace afw::app

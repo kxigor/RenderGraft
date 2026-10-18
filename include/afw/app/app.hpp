@@ -4,6 +4,6 @@
 
 namespace afw::app {
 
-[[noreturn]] void Run(Game& game) noexcept;
+void Run(Game& game) noexcept;
 
 }  // namespace afw::app

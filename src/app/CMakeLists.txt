@@ -1,12 +1,6 @@
 # =========================================================
 # afw::app  (STATIC)
 # =========================================================
-# The injected DLL's session, with nothing title-specific in it: the file log,
-# the Present and window-procedure hooks, the overlay's menu, the detour drain
-# and the self-unload. A game plugs in through afw::app::Game -- its own hooks
-# and its own per-frame drawing -- so this layer is what a second title reuses
-# unchanged. Windows-only, so it is added from src/ only under WIN32.
-
 add_library(afw_app STATIC
   app.cpp
   detour_guard.cpp
