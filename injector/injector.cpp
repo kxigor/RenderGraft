@@ -1,12 +1,11 @@
 #include "injector.hpp"
 
-#include <array>
 #include <cstdio>
-#include <cwchar>
 #include <expected>
 #include <filesystem>
 #include <rgf/remote/remote.hpp>
 #include <rgf/win/error.hpp>
+#include <rgf/win/module_view.hpp>
 #include <rgf/win/scoped_handle.hpp>
 #include <system_error>
 
@@ -15,19 +14,15 @@ namespace {
 
 [[nodiscard]] std::expected<std::filesystem::path, std::error_code>
 ResolveDllPath(PCWSTR dllName) {
-  std::array<WCHAR, MAX_PATH> exePath{};
-  const DWORD kLength{GetModuleFileNameW(
-      /*hModule    = */ nullptr,
-      /*lpFilename = */ exePath.data(),
-      /*nSize      = */ static_cast<DWORD>(MAX_PATH))};
-  if (kLength == 0) {
-    return std::unexpected{win::LastError()};
+  const auto kExecutable{win::ModuleView::Executable()};
+  if (!kExecutable) {
+    return std::unexpected{kExecutable.error()};
   }
-  if (kLength >= static_cast<DWORD>(MAX_PATH)) {
-    return std::unexpected{
-        std::error_code{ERROR_INSUFFICIENT_BUFFER, std::system_category()}};
+  const auto kPath{kExecutable->Path()};
+  if (!kPath) {
+    return std::unexpected{kPath.error()};
   }
-  return std::filesystem::path{exePath.data()}.parent_path() / dllName;
+  return kPath->parent_path() / dllName;
 }
 
 }  // namespace

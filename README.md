@@ -26,11 +26,38 @@ The framework uses the `rgf::*` namespace and CMake aliases, with public headers
 
 Extract a common instrumentation core, graphics backends, and adapters for specific applications. Each additional application should connect through an adapter and the required graphics mechanism; a 2D scenario does not require a game world model. Far Cry 3 remains the working example while the common layer is extracted.
 
-## Next scenario: Telegram Desktop
+TODO: Design a coherent logging architecture with singleton access and logger factories for stream or file output, including ownership, lifetime, and error handling.
+
+## Telegram Desktop
 
 A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
 
-Planning starts with studying Qt Widgets, `QPainter`, paint events, and the actual rendering path in the selected Telegram version, followed by materials on DLL injection and graphics hooks in this stack. The starting points are the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop) and [QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
+The next step is to identify the actual rendering path in the selected Telegram build and justify the interception point. The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop), and [QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
+
+### Milestones
+
+| Milestone | Result | Status |
+| --- | --- | --- |
+| T1 | Basic DLL injection into Telegram, runtime diagnostics, and automatic unload while the client keeps running | done |
+| T2 | Identify the selected build's Qt rendering path and validate candidate hook points against the running application | next |
+| T3 | Intercept the selected rendering path, draw a test marker, and restore normal rendering when the hook is removed | planned |
+| T4 | Choose the sensitive interface elements to hide and relate their painted regions to the relevant internal application state | planned |
+| T5 | Implement masking through the rendering hook, with an on/off control; verify the result during screen capture and restore normal rendering on disable or unload | planned |
+| T6 | Separate the shared instrumentation and Qt graphics mechanisms from Telegram-specific state, signatures, and masking rules | planned |
+| T7 | Document a reproducible AI-assisted adapter workflow: inputs, tools, proposed hook points, and checks that accept or reject the findings | planned |
+| T8 | Evaluate masking correctness, runtime overhead, and repeated attach/unload; document the tested Telegram build and limitations | planned |
+
+Work through these milestones in order and update their status after verification. Record AI-assisted analysis and validation throughout the implementation; T7 consolidates that evidence into a reproducible workflow. The selected interface elements, hook mechanism, and evaluation criteria will be refined as the earlier steps provide evidence.
+
+### Injection probe
+
+An initial injection probe is available. After building `dev-debug`, run this with 64-bit Telegram Desktop open:
+
+```sh
+./build/dev-debug/injector/injector_telegram.exe
+```
+
+The launcher loads `rgf_telegram.dll` into `Telegram.exe`. The DLL writes the process and worker thread IDs, pointer width, main image base, image size, and entry point to `rgf_telegram.dll.log` next to the DLL and to the debugger output. It then unloads automatically while Telegram keeps running. This is a startup probe; Qt rendering hooks are still planned.
 
 ## Building the current example
 
@@ -66,6 +93,6 @@ The launcher runs without arguments. Its entry point specifies the process name 
 
 The launcher, DLL, and target process must use matching architectures. A successful DLL load and completed callback initialization are separate states: the callback starts asynchronously.
 
-`INSERT` toggles the menu; `Unload` ends the session and unloads the DLL. The Telegram adapter is not implemented yet.
+For the Far Cry 3 example, `INSERT` toggles the menu; `Unload` ends the session and unloads the DLL. The Telegram graphics adapter is not implemented yet.
 
 License: [Educational Source-Available License](LICENSE), for educational and non-commercial use.

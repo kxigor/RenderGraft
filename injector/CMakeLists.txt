@@ -19,7 +19,17 @@ set_target_properties(rgf_injector PROPERTIES
 
 target_link_libraries(rgf_injector PRIVATE rgf::injector)
 
-foreach(rgf_injector_target IN ITEMS rgf_injector_core rgf_injector)
+add_executable(rgf_injector_telegram
+  telegram/main.cpp
+)
+set_target_properties(rgf_injector_telegram PROPERTIES
+  OUTPUT_NAME "injector_telegram"
+)
+
+target_link_libraries(rgf_injector_telegram PRIVATE rgf::injector)
+
+foreach(rgf_injector_target IN ITEMS
+    rgf_injector_core rgf_injector rgf_injector_telegram)
   if(TARGET project_options)
     target_link_libraries(${rgf_injector_target} PRIVATE project_options)
   endif()
@@ -29,15 +39,15 @@ foreach(rgf_injector_target IN ITEMS rgf_injector_core rgf_injector)
   if(TARGET project_coverage)
     target_link_libraries(${rgf_injector_target} PRIVATE project_coverage)
   endif()
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND
+      NOT rgf_injector_target STREQUAL "rgf_injector_core")
+    target_link_options(${rgf_injector_target} PRIVATE
+      -static
+      -static-libgcc
+      -static-libstdc++
+    )
+  endif()
 endforeach()
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-  target_link_options(rgf_injector PRIVATE
-    -static
-    -static-libgcc
-    -static-libstdc++
-  )
-endif()
 
 if(TARGET aimbot_fc3)
   set(rgf_staged_dll
@@ -59,4 +69,26 @@ if(TARGET aimbot_fc3)
   endif()
 
   add_dependencies(rgf_stage_dll aimbot_fc3 rgf_injector)
+endif()
+
+if(TARGET rgf_telegram)
+  set(rgf_staged_telegram_dll
+      $<TARGET_FILE_DIR:rgf_injector_telegram>/$<TARGET_FILE_NAME:rgf_telegram>)
+
+  add_custom_target(rgf_stage_telegram_dll ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      $<TARGET_FILE:rgf_telegram> $<TARGET_FILE_DIR:rgf_injector_telegram>
+    COMMENT "Staging rgf_telegram.dll next to injector_telegram.exe"
+    VERBATIM
+  )
+
+  if(CMAKE_STRIP)
+    add_custom_command(TARGET rgf_stage_telegram_dll POST_BUILD
+      COMMAND ${CMAKE_STRIP} --strip-debug ${rgf_staged_telegram_dll}
+      COMMENT "Stripping debug information from the staged rgf_telegram.dll"
+      VERBATIM
+    )
+  endif()
+
+  add_dependencies(rgf_stage_telegram_dll rgf_telegram rgf_injector_telegram)
 endif()

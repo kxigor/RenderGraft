@@ -12,6 +12,7 @@ add_library(rgf_win STATIC
   scoped_handle.cpp
   remote_memory.cpp
   protect_guard.cpp
+  module_view.cpp
 )
 add_library(rgf::win ALIAS rgf_win)
 
