@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <rgf/hook/vmt_hook.hpp>
+#include <rgf/qt/raster_text_hook.hpp>
 #include <rgf/win/error.hpp>
 #include <string>
 #include <system_error>
@@ -19,6 +20,7 @@
 
 #include "diagnostics.hpp"
 #include "gui_dispatch.hpp"
+#include "internal/build.hpp"
 #include "raster_marker.hpp"
 #include "render_target.hpp"
 #include "widget_refresh.hpp"
@@ -30,7 +32,8 @@ namespace {
 struct Message;
 struct PaintContext;
 
-using MessageDraw = void (*)(const Message* message, internal::Painter& painter,
+using MessageDraw = void (*)(const Message* message,
+                             qt::internal::Painter& painter,
                              const PaintContext& context);
 
 BOOL CALLBACK FindMainWindow(HWND window, LPARAM parameter) {
@@ -86,8 +89,10 @@ class RenderProbe {
   CreateMessageHook(const RenderTarget& target);
   [[nodiscard]] static std::error_code Install() noexcept;
   [[nodiscard]] static std::error_code Remove() noexcept;
-  static void Draw(const Message* message, internal::Painter& painter,
+  static void Draw(const Message* message, qt::internal::Painter& painter,
                    const PaintContext& context) noexcept;
+  static void OnTextDrawn(const qt::RasterCanvas& canvas,
+                          const qt::internal::RectF& bounds) noexcept;
   void Report() const noexcept;
   static void FailDispatch(const std::error_code& error, const char* step);
 
@@ -98,6 +103,8 @@ class RenderProbe {
   const MessageDraw kOriginal_;
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
+  std::uint64_t qtTextCalls_{};
+  std::uint64_t markerCalls_{};
   std::atomic<bool> unexpectedThread_{false};
 };
 
@@ -124,8 +131,8 @@ RenderProbe& RenderProbe::Instance() noexcept {
 
 std::expected<std::unique_ptr<hook::VmtHook>, std::error_code>
 RenderProbe::CreateMessageHook(const RenderTarget& target) {
-  constexpr std::size_t kDrawSlot{10};
-  auto hook{hook::VmtHook::CreateDynamic(target.MessageTable(), kDrawSlot)};
+  auto hook{hook::VmtHook::CreateDynamic(target.MessageTable(),
+                                         internal::kMessageDrawSlot)};
   if (!hook) {
     return std::unexpected{hook.error()};
   }
@@ -162,7 +169,7 @@ std::error_code RenderProbe::Remove() noexcept {
   return kRefreshed ? std::error_code{} : kRefreshed.error();
 }
 
-void RenderProbe::Draw(const Message* message, internal::Painter& painter,
+void RenderProbe::Draw(const Message* message, qt::internal::Painter& painter,
                        const PaintContext& context) noexcept {
   auto& probe{Instance()};
   if (GetCurrentThreadId() != probe.kGuiThread_) {
@@ -173,11 +180,20 @@ void RenderProbe::Draw(const Message* message, internal::Painter& painter,
   ++probe.drawDepth_;
   ++probe.messageCalls_;
   {
-    const RasterMarker kMarker{painter, probe.kTarget_.PaintEngine(),
-                               probe.kTarget_.RasterTable()};
+    const qt::RasterTextHook kTextHook{painter, probe.kTarget_.PaintEngine(),
+                                       probe.kTarget_.RasterTable(),
+                                       &OnTextDrawn};
     probe.kOriginal_(message, painter, context);
   }
   --probe.drawDepth_;
+}
+
+void RenderProbe::OnTextDrawn(const qt::RasterCanvas& canvas,
+                              const qt::internal::RectF& bounds) noexcept {
+  auto& probe{Instance()};
+  ++probe.qtTextCalls_;
+  DrawRasterMarker(canvas, bounds);
+  ++probe.markerCalls_;
 }
 
 void RenderProbe::Report() const noexcept {
@@ -188,8 +204,8 @@ void RenderProbe::Report() const noexcept {
       "render_probe=completed\ngui_thread_id=%lu\nmessage_draw_calls=%llu\n"
       "qt_text_calls=%llu\nmarker_calls=%llu\nhooks_removed=true\n",
       kGuiThread_, static_cast<unsigned long long>(messageCalls_),
-      static_cast<unsigned long long>(RasterMarker::TextCalls()),
-      static_cast<unsigned long long>(RasterMarker::MarkersDrawn()))};
+      static_cast<unsigned long long>(qtTextCalls_),
+      static_cast<unsigned long long>(markerCalls_))};
   if (kLength > 0 && static_cast<std::size_t>(kLength) < text.size()) {
     RunDiagnostics({text.data(), static_cast<std::size_t>(kLength)});
   }

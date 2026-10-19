@@ -9,6 +9,7 @@
 #include <optional>
 #include <rgf/win/error.hpp>
 #include <rgf/win/module_view.hpp>
+#include <rgf/win/windows_hook.hpp>
 #include <system_error>
 #include <tuple>
 #include <utility>
@@ -20,40 +21,9 @@ namespace {
 const WCHAR kModuleAnchor{};
 constexpr DWORD kRetryMilliseconds{10};
 
-class WindowsHook {
- public:
-  explicit WindowsHook(HHOOK hook) noexcept : hook_{hook} {}
-
-  WindowsHook(const WindowsHook&) = delete;
-  WindowsHook& operator=(const WindowsHook&) = delete;
-
-  WindowsHook(WindowsHook&& other) noexcept : hook_{other.Release()} {}
-  WindowsHook& operator=(WindowsHook&&) = delete;
-
-  ~WindowsHook() { std::ignore = Reset(); }
-
-  [[nodiscard]] HHOOK Get() const noexcept { return hook_; }
-  [[nodiscard]] HHOOK Release() noexcept {
-    return std::exchange(hook_, nullptr);
-  }
-
-  [[nodiscard]] std::expected<void, std::error_code> Reset() noexcept {
-    if (hook_ != nullptr) {
-      if (UnhookWindowsHookEx(/*hhk = */ hook_) == FALSE) {
-        return std::unexpected{win::LastError()};
-      }
-      hook_ = nullptr;
-    }
-    return {};
-  }
-
- private:
-  HHOOK hook_;
-};
-
 struct GuiCall {
   GuiCall(HWND target, UINT command, GuiCallback action,
-          WindowsHook ownedHook) noexcept
+          win::WindowsHook ownedHook) noexcept
       : kWindow_{target},
         kMessage_{command},
         callback{action},
@@ -62,7 +32,7 @@ struct GuiCall {
   HWND__* const kWindow_;
   const UINT kMessage_;
   std::atomic<GuiCallback> callback;
-  WindowsHook hook;
+  win::WindowsHook hook;
   std::error_code result;
   bool retry{false};
   std::atomic<bool> complete{false};
@@ -191,10 +161,10 @@ LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
     return std::unexpected{kError};
   }
 
-  WindowsHook hook{SetWindowsHookExW(/*idHook = */ WH_CALLWNDPROC,
-                                     /*lpfn = */ &Dispatch,
-                                     /*hmod = */ kModule->Get(),
-                                     /*dwThreadId = */ kThreadId)};
+  win::WindowsHook hook{SetWindowsHookExW(/*idHook = */ WH_CALLWNDPROC,
+                                          /*lpfn = */ &Dispatch,
+                                          /*hmod = */ kModule->Get(),
+                                          /*dwThreadId = */ kThreadId)};
   if (hook.Get() == nullptr) {
     const std::error_code kError{win::LastError()};
     return std::unexpected{kError};

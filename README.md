@@ -59,7 +59,7 @@ After building `dev-debug`, open a chat with visible messages in the supported 6
 ./build/dev-debug/injector/injector_telegram.exe
 ```
 
-The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, small magenta squares mark text rendered through `QRasterPaintEngine::drawTextItem` while `HistoryView::Message::draw` is active. The Qt hook uses a temporary private vtable on the current paint engine. Hook installation and removal run on the GUI thread.
+The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, opaque purple rectangles cover text rendered through `QRasterPaintEngine::drawTextItem` while `HistoryView::Message::draw` is active. Each rectangle follows the text run's width, ascent, and descent, with a small margin. The Qt hook uses a temporary private vtable on the current paint engine. Hook installation and removal run on the GUI thread.
 
 The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics and call counts are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Other builds are rejected before patching; an uncertain cleanup keeps the DLL loaded and reports the failure.
 

@@ -13,10 +13,13 @@ add_library(rgf_win STATIC
   remote_memory.cpp
   protect_guard.cpp
   module_view.cpp
+  windows_hook.cpp
 )
 add_library(rgf::win ALIAS rgf_win)
 
 target_compile_features(rgf_win PUBLIC cxx_std_23)
+
+target_link_libraries(rgf_win PRIVATE user32)
 
 # Public headers live in the top-level include/ (sibling of src/).
 target_include_directories(rgf_win

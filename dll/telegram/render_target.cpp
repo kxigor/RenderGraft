@@ -10,15 +10,11 @@
 #include <rgf/win/module_view.hpp>
 #include <span>
 
-#include "internal/widget.hpp"
+#include "internal/build.hpp"
 
 namespace rgf::telegram {
 
 namespace {
-
-constexpr std::uintptr_t kMessageTableRva{0x8579200};
-constexpr std::uintptr_t kMessageDrawRva{0x1d31980};
-constexpr std::size_t kMessageDrawSlot{10};
 
 [[nodiscard]] std::error_code UnsupportedBuild() noexcept {
   return std::make_error_code(std::errc::not_supported);
@@ -60,17 +56,13 @@ constexpr std::size_t kMessageDrawSlot{10};
   if (!read) {
     return read;
   }
-  constexpr DWORD kTimestamp{0x6aca0c36};
-  constexpr DWORD kImageSize{0xe673000};
-  constexpr DWORD kEntryRva{0x63d29cc};
-  constexpr DWORD kChecksum{0xe13ebf8};
   if (headers.Signature != IMAGE_NT_SIGNATURE ||
       headers.FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64 ||
       headers.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC ||
-      headers.FileHeader.TimeDateStamp != kTimestamp ||
-      headers.OptionalHeader.SizeOfImage != kImageSize ||
-      headers.OptionalHeader.AddressOfEntryPoint != kEntryRva ||
-      headers.OptionalHeader.CheckSum != kChecksum) {
+      headers.FileHeader.TimeDateStamp != internal::kTimestamp ||
+      headers.OptionalHeader.SizeOfImage != internal::kImageSize ||
+      headers.OptionalHeader.AddressOfEntryPoint != internal::kEntryRva ||
+      headers.OptionalHeader.CheckSum != internal::kChecksum) {
     return std::unexpected{UnsupportedBuild()};
   }
   return {};
@@ -123,19 +115,20 @@ constexpr std::size_t kMessageDrawSlot{10};
 
 [[nodiscard]] std::expected<void, std::error_code> CheckTables(
     std::uintptr_t base) noexcept {
-  const auto kMessage{
-      CheckSlot(base, kMessageTableRva, kMessageDrawSlot, kMessageDrawRva)};
+  const auto kMessage{CheckSlot(base, internal::kMessageTableRva,
+                                internal::kMessageDrawSlot,
+                                internal::kMessageDrawRva)};
   if (!kMessage) {
     return kMessage;
   }
   const auto kText{CheckSlot(base, internal::kRasterVtableRva,
-                             internal::kDrawTextItemSlot,
+                             qt::internal::kDrawTextItemSlot,
                              internal::kDrawTextItemRva)};
   if (!kText) {
     return kText;
   }
-  return CheckSlot(base, internal::kRasterVtableRva, internal::kFillColorSlot,
-                   internal::kFillColorRva);
+  return CheckSlot(base, internal::kRasterVtableRva,
+                   qt::internal::kFillColorSlot, internal::kFillColorRva);
 }
 
 }  // namespace
@@ -167,16 +160,17 @@ std::expected<RenderTarget, std::error_code> RenderTarget::Locate() {
 RenderTarget::RenderTarget(std::uintptr_t base) noexcept : kBase_{base} {}
 
 hook::Vtable RenderTarget::MessageTable() const noexcept {
-  return hook::Vtable{std::bit_cast<void**>(kBase_ + kMessageTableRva)};
+  return hook::Vtable{
+      std::bit_cast<void**>(kBase_ + internal::kMessageTableRva)};
 }
 
 void** RenderTarget::RasterTable() const noexcept {
   return std::bit_cast<void**>(kBase_ + internal::kRasterVtableRva);
 }
 
-internal::GetPaintEngine RenderTarget::PaintEngine() const noexcept {
-  return std::bit_cast<internal::GetPaintEngine>(kBase_ +
-                                                 internal::kGetPaintEngineRva);
+qt::internal::GetPaintEngine RenderTarget::PaintEngine() const noexcept {
+  return std::bit_cast<qt::internal::GetPaintEngine>(
+      kBase_ + internal::kGetPaintEngineRva);
 }
 
 }  // namespace rgf::telegram
