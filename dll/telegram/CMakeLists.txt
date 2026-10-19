@@ -6,6 +6,18 @@ add_library(rgf_telegram SHARED
   dllmain.cpp
   diagnostics.cpp
   diagnostics.hpp
+  gui_dispatch.cpp
+  gui_dispatch.hpp
+  internal/qt.hpp
+  internal/widget.hpp
+  raster_marker.cpp
+  raster_marker.hpp
+  render_probe.cpp
+  render_probe.hpp
+  render_target.cpp
+  render_target.hpp
+  widget_refresh.cpp
+  widget_refresh.hpp
 )
 
 set_target_properties(rgf_telegram PROPERTIES
@@ -15,7 +27,7 @@ set_target_properties(rgf_telegram PROPERTIES
 
 target_compile_features(rgf_telegram PRIVATE cxx_std_23)
 
-target_link_libraries(rgf_telegram PRIVATE rgf::module rgf::win psapi)
+target_link_libraries(rgf_telegram PRIVATE rgf::module rgf::hook rgf::win psapi)
 
 if(TARGET project_options)
   target_link_libraries(rgf_telegram PRIVATE project_options)

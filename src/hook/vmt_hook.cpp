@@ -107,14 +107,7 @@ std::expected<void, std::error_code> VmtHook::Enable() noexcept {
     return std::unexpected{make_error_code(Error::HookAlreadyApplied)};
   }
 
-  const std::expected<void, std::error_code> kSwapped{SwapSlot(detour_)};
-  if (!kSwapped) {
-    return std::unexpected{kSwapped.error()};
-  }
-
-  isEnabled_ = true;
-
-  return {};
+  return SetEnabled(true);
 }
 
 std::expected<void, std::error_code> VmtHook::Disable() noexcept {
@@ -122,17 +115,11 @@ std::expected<void, std::error_code> VmtHook::Disable() noexcept {
     return std::unexpected{make_error_code(Error::HookNotApplied)};
   }
 
-  const std::expected<void, std::error_code> kSwapped{SwapSlot(kOriginal_)};
-  if (!kSwapped) {
-    return std::unexpected{kSwapped.error()};
-  }
-
-  isEnabled_ = false;
-
-  return {};
+  return SetEnabled(false);
 }
 
-std::expected<void, std::error_code> VmtHook::SwapSlot(void* value) noexcept {
+std::expected<void, std::error_code> VmtHook::SetEnabled(
+    bool isEnabled) noexcept {
   std::expected<win::ProtectGuard, std::error_code> guard{
       win::ProtectGuard::Create(GetCurrentProcess(),
                                 static_cast<LPVOID>(kSlot_), sizeof(void*),
@@ -141,7 +128,8 @@ std::expected<void, std::error_code> VmtHook::SwapSlot(void* value) noexcept {
     return std::unexpected{guard.error()};
   }
 
-  *kSlot_ = value;
+  *kSlot_ = isEnabled ? detour_ : kOriginal_;
+  isEnabled_ = isEnabled;
 
   return guard->Restore();
 }

@@ -10,6 +10,7 @@
 #include <rgf/hook/vtable.hpp>
 #include <support/win_probe.hpp>
 #include <system_error>
+#include <utility>
 
 namespace {
 
@@ -21,6 +22,48 @@ using ProbeFn = int (*)();
 int OriginalFn() { return 1; }
 int DetourFn() { return 2; }
 int OtherDetourFn() { return 3; }
+
+using VirtualProtectExFn = decltype(&VirtualProtectEx);
+
+VirtualProtectExFn originalVirtualProtectEx{nullptr};
+LPVOID failurePage{nullptr};
+DWORD failureProtection{};
+
+BOOL WINAPI FailNextProtection(HANDLE process, LPVOID address, SIZE_T size,
+                               DWORD protection, PDWORD previous) {
+  if (address == failurePage && protection == failureProtection) {
+    failureProtection = 0;
+    SetLastError(ERROR_ACCESS_DENIED);
+    return FALSE;
+  }
+  return originalVirtualProtectEx(process, address, size, protection, previous);
+}
+
+[[nodiscard]] void** FindVirtualProtectExImport() {
+  auto* image{static_cast<BYTE*>(
+      static_cast<void*>(GetModuleHandleW(/*lpModuleName = */ nullptr)))};
+  if (image == nullptr) {
+    return nullptr;
+  }
+  const auto* kDos{
+      static_cast<const IMAGE_DOS_HEADER*>(static_cast<const void*>(image))};
+  const auto* kNt{static_cast<const IMAGE_NT_HEADERS*>(
+      static_cast<const void*>(image + kDos->e_lfanew))};
+  const auto& kDirectory{
+      kNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT]};
+  const auto* descriptor{static_cast<const IMAGE_IMPORT_DESCRIPTOR*>(
+      static_cast<const void*>(image + kDirectory.VirtualAddress))};
+  for (; descriptor->Name != 0; ++descriptor) {
+    auto* thunk{static_cast<IMAGE_THUNK_DATA*>(
+        static_cast<void*>(image + descriptor->FirstThunk))};
+    for (; thunk->u1.Function != 0; ++thunk) {
+      if (thunk->u1.Function == std::bit_cast<ULONG_PTR>(&VirtualProtectEx)) {
+        return static_cast<void**>(static_cast<void*>(&thunk->u1.Function));
+      }
+    }
+  }
+  return nullptr;
+}
 
 class VmtHookUnit : public ::testing::Test {
  protected:
@@ -59,6 +102,38 @@ class VmtHookUnit : public ::testing::Test {
 
   LPVOID page_{nullptr};
   void** table_{nullptr};
+};
+
+class VmtHookProtectionFailureUnit : public VmtHookUnit {
+ protected:
+  void SetUp() override {
+    VmtHookUnit::SetUp();
+    ASSERT_NE(page_, nullptr);
+    void** const kImport{FindVirtualProtectExImport()};
+    ASSERT_NE(kImport, nullptr);
+
+    auto hook{
+        rgf::hook::VmtHook::CreateDynamic(rgf::hook::Vtable{kImport}, kSlot)};
+    ASSERT_TRUE(hook.has_value()) << hook.error().message();
+    protectionHook_ = std::move(*hook);
+    originalVirtualProtectEx = protectionHook_->Original<VirtualProtectExFn>();
+    ASSERT_TRUE(protectionHook_->SetDetour(&FailNextProtection).has_value());
+    ASSERT_TRUE(protectionHook_->Enable().has_value());
+    failurePage = page_;
+  }
+
+  void TearDown() override {
+    failurePage = nullptr;
+    failureProtection = 0;
+    protectionHook_.reset();
+    originalVirtualProtectEx = nullptr;
+    VmtHookUnit::TearDown();
+  }
+
+  void FailNextChange(DWORD protection) { failureProtection = protection; }
+
+ private:
+  std::unique_ptr<rgf::hook::VmtHook> protectionHook_;
 };
 
 }  // namespace
@@ -284,4 +359,64 @@ TEST_F(VmtHookUnit, SetDetourAfterDisableReplacesTheDetour) {
 
   EXPECT_EQ(CallSlot(), 3);
   EXPECT_EQ(hook->Original<ProbeFn>()(), 1);
+}
+
+TEST_F(VmtHookProtectionFailureUnit,
+       EnableProtectionFailureLeavesTheHookDisabled) {
+  auto hook{rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
+  ASSERT_TRUE(hook.has_value()) << hook.error().message();
+  ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
+  FailNextChange(PAGE_READWRITE);
+
+  const auto kEnabled{hook->Enable()};
+
+  ASSERT_FALSE(kEnabled.has_value());
+  EXPECT_EQ(kEnabled.error(),
+            (std::error_code{ERROR_ACCESS_DENIED, std::system_category()}));
+  EXPECT_EQ(CallSlot(), 1);
+  EXPECT_TRUE(hook->SetDetour(&OtherDetourFn).has_value());
+  EXPECT_TRUE(hook->Enable().has_value());
+  EXPECT_EQ(CallSlot(), 3);
+}
+
+TEST_F(VmtHookProtectionFailureUnit,
+       EnableRestoreFailureStillRestoresTheOriginalOnDestruction) {
+  {
+    auto hook{rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
+    ASSERT_TRUE(hook.has_value()) << hook.error().message();
+    ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
+    FailNextChange(PAGE_READONLY);
+
+    const auto kEnabled{hook->Enable()};
+
+    ASSERT_FALSE(kEnabled.has_value());
+    EXPECT_EQ(kEnabled.error(),
+              (std::error_code{ERROR_ACCESS_DENIED, std::system_category()}));
+    EXPECT_EQ(CallSlot(), 2);
+    const auto kSecond{hook->Enable()};
+    ASSERT_FALSE(kSecond.has_value());
+    EXPECT_EQ(kSecond.error(),
+              rgf::hook::make_error_code(rgf::hook::Error::HookAlreadyApplied));
+  }
+
+  EXPECT_EQ(CallSlot(), 1);
+}
+
+TEST_F(VmtHookProtectionFailureUnit,
+       DisableRestoreFailureStillLeavesTheHookDisabled) {
+  auto hook{rgf::hook::VmtHook::Create(rgf::hook::Vtable{table_}, kSlot)};
+  ASSERT_TRUE(hook.has_value()) << hook.error().message();
+  ASSERT_TRUE(hook->SetDetour(&DetourFn).has_value());
+  ASSERT_TRUE(hook->Enable().has_value());
+  FailNextChange(PAGE_READONLY);
+
+  const auto kDisabled{hook->Disable()};
+
+  ASSERT_FALSE(kDisabled.has_value());
+  EXPECT_EQ(kDisabled.error(),
+            (std::error_code{ERROR_ACCESS_DENIED, std::system_category()}));
+  EXPECT_EQ(CallSlot(), 1);
+  ASSERT_TRUE(hook->SetDetour(&OtherDetourFn).has_value());
+  EXPECT_TRUE(hook->Enable().has_value());
+  EXPECT_EQ(CallSlot(), 3);
 }

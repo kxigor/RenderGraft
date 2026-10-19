@@ -39,8 +39,8 @@ class VmtHook final : public Hook {
 
   [[nodiscard]] void* OriginalRaw() const noexcept override;
 
-  [[nodiscard]] std::expected<void, std::error_code> SwapSlot(
-      void* value) noexcept;
+  [[nodiscard]] std::expected<void, std::error_code> SetEnabled(
+      bool isEnabled) noexcept;
 
   bool isEnabled_{false};
   void* detour_{nullptr};

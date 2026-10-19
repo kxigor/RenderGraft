@@ -107,20 +107,21 @@ void ReportFailure(const char* step, const std::error_code& error) {
 
 }  // namespace
 
-void RunDiagnostics() noexcept {
+void RunDiagnostics(std::string_view details) noexcept {
   try {
     const auto kPath{ReportPath()};
     if (!kPath) {
       ReportFailure("resolving the report path", kPath.error());
       return;
     }
-    const auto kReport{ReadReport()};
-    if (!kReport) {
-      ReportFailure("reading application diagnostics", kReport.error());
+    auto report{ReadReport()};
+    if (!report) {
+      ReportFailure("reading application diagnostics", report.error());
       return;
     }
-    OutputDebugStringA(kReport->c_str());
-    const auto kWritten{WriteReport(*kPath, *kReport)};
+    report->append(details);
+    OutputDebugStringA(report->c_str());
+    const auto kWritten{WriteReport(*kPath, *report)};
     if (!kWritten) {
       ReportFailure("writing the report", kWritten.error());
     }

@@ -32,32 +32,36 @@ TODO: Design a coherent logging architecture with singleton access and logger fa
 
 A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
 
-The next step is to identify the actual rendering path in the selected Telegram build and justify the interception point. The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop), and [QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
+The initial target is Telegram Desktop 7.3.1 x64 with statically linked Qt 5.15.19. A reversible rendering probe draws test markers through the client's Qt paint engine. The next step is to select the sensitive interface elements and relate them to application state.
+
+The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.1), and [Qt 5.15 QWidget documentation](https://doc.qt.io/archives/qt-5.15/qwidget.html).
 
 ### Milestones
 
 | Milestone | Result | Status |
 | --- | --- | --- |
 | T1 | Basic DLL injection into Telegram, runtime diagnostics, and automatic unload while the client keeps running | done |
-| T2 | Identify the selected build's Qt rendering path and validate candidate hook points against the running application | next |
-| T3 | Intercept the selected rendering path, draw a test marker, and restore normal rendering when the hook is removed | planned |
-| T4 | Choose the sensitive interface elements to hide and relate their painted regions to the relevant internal application state | planned |
+| T2 | Identify the selected build's Qt rendering path and validate candidate hook points against the running application | done |
+| T3 | Intercept the selected rendering path, draw a test marker, and restore normal rendering when the hook is removed | done |
+| T4 | Choose the sensitive interface elements to hide and relate their painted regions to the relevant internal application state | next |
 | T5 | Implement masking through the rendering hook, with an on/off control; verify the result during screen capture and restore normal rendering on disable or unload | planned |
 | T6 | Separate the shared instrumentation and Qt graphics mechanisms from Telegram-specific state, signatures, and masking rules | planned |
 | T7 | Document a reproducible AI-assisted adapter workflow: inputs, tools, proposed hook points, and checks that accept or reject the findings | planned |
 | T8 | Evaluate masking correctness, runtime overhead, and repeated attach/unload; document the tested Telegram build and limitations | planned |
 
-Work through these milestones in order and update their status after verification. Record AI-assisted analysis and validation throughout the implementation; T7 consolidates that evidence into a reproducible workflow. The selected interface elements, hook mechanism, and evaluation criteria will be refined as the earlier steps provide evidence.
+Work through these milestones in order and update their status after verification. The selected interface elements, hook mechanism, and evaluation criteria will be refined during implementation. T7 will describe the resulting adapter workflow.
 
-### Injection probe
+### Rendering probe
 
-An initial injection probe is available. After building `dev-debug`, run this with 64-bit Telegram Desktop open:
+After building `dev-debug`, open a chat with visible messages in the supported 64-bit Telegram Desktop build and run:
 
 ```sh
 ./build/dev-debug/injector/injector_telegram.exe
 ```
 
-The launcher loads `rgf_telegram.dll` into `Telegram.exe`. The DLL writes the process and worker thread IDs, pointer width, main image base, image size, and entry point to `rgf_telegram.dll.log` next to the DLL and to the debugger output. It then unloads automatically while Telegram keeps running. This is a startup probe; Qt rendering hooks are still planned.
+The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, small magenta squares mark text rendered through `QRasterPaintEngine::drawTextItem` while `HistoryView::Message::draw` is active. The Qt hook uses a temporary private vtable on the current paint engine. Hook installation and removal run on the GUI thread.
+
+The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics and call counts are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Other builds are rejected before patching; an uncertain cleanup keeps the DLL loaded and reports the failure.
 
 ## Building the current example
 

@@ -2,11 +2,11 @@
 
 #include <rgf/module/entry.hpp>
 
-#include "diagnostics.hpp"
+#include "render_probe.hpp"
 
 namespace {
 
-void OnAttach() { rgf::telegram::RunDiagnostics(); }
+void OnAttach() { rgf::telegram::RunRenderProbe(); }
 
 }  // namespace
 
