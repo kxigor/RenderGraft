@@ -7,21 +7,21 @@
 #include <future>
 #include <memory>
 #include <rgf/win/error.hpp>
+#include <rgf/win/window.hpp>
+#include <rgf/win/window_dispatch.hpp>
 #include <semaphore>
 #include <system_error>
 #include <thread>
 #include <type_traits>
 
-#include "gui_dispatch.hpp"
-
 namespace {
 
-constexpr PCWSTR kClassName{L"RgfTelegramGuiDispatchProbe"};
+constexpr PCWSTR kClassName{L"RgfWindowDispatchProbe"};
 constexpr std::chrono::seconds kCallbackTimeout{5};
 
-class GuiWindow {
+class DispatchWindow {
  public:
-  GuiWindow() {
+  DispatchWindow() {
     std::promise<std::expected<HWND, std::error_code>> ready;
     auto future{ready.get_future()};
     thread_ = std::jthread{[this, &ready] { Run(ready); }};
@@ -33,13 +33,13 @@ class GuiWindow {
     }
   }
 
-  GuiWindow(const GuiWindow&) = delete;
-  GuiWindow& operator=(const GuiWindow&) = delete;
+  DispatchWindow(const DispatchWindow&) = delete;
+  DispatchWindow& operator=(const DispatchWindow&) = delete;
 
-  GuiWindow(GuiWindow&&) = delete;
-  GuiWindow& operator=(GuiWindow&&) = delete;
+  DispatchWindow(DispatchWindow&&) = delete;
+  DispatchWindow& operator=(DispatchWindow&&) = delete;
 
-  ~GuiWindow() {
+  ~DispatchWindow() {
     if (window_ != nullptr) {
       EXPECT_NE(PostThreadMessageW(threadId_, WM_QUIT, 0, 0), FALSE);
     }
@@ -135,7 +135,7 @@ struct CallbackProbe {
 }
 
 void ExpectConcurrentDispatchIsBusy(HWND window) {
-  const auto kConcurrent{rgf::telegram::OnGuiThread(window, &RecordCallback)};
+  const auto kConcurrent{rgf::win::OnWindowThread(window, &RecordCallback)};
   const std::error_code kExpected{ERROR_BUSY, std::system_category()};
   ASSERT_FALSE(kConcurrent.has_value());
   EXPECT_EQ(kConcurrent.error(), kExpected);
@@ -143,7 +143,7 @@ void ExpectConcurrentDispatchIsBusy(HWND window) {
   EXPECT_EQ(Probe().calls.load(), 1);
 }
 
-class GuiDispatchUnit : public ::testing::Test {
+class WindowDispatchUnit : public ::testing::Test {
  protected:
   void SetUp() override {
     ASSERT_FALSE(window_.Error());
@@ -153,17 +153,27 @@ class GuiDispatchUnit : public ::testing::Test {
     Probe().completed.store(false);
   }
 
-  [[nodiscard]] const GuiWindow& Window() const noexcept { return window_; }
+  [[nodiscard]] const DispatchWindow& Window() const noexcept {
+    return window_;
+  }
 
  private:
-  GuiWindow window_;
+  DispatchWindow window_;
 };
 
 }  // namespace
 
-TEST_F(GuiDispatchUnit, ExecutesOnTheWindowThreadAndCompletesBeforeReturning) {
-  const auto kResult{
-      rgf::telegram::OnGuiThread(Window().Get(), &RecordCallback)};
+TEST_F(WindowDispatchUnit, ReportsTheWindowOwnersThreadInsteadOfTheCaller) {
+  const auto kThread{rgf::win::WindowThreadId(Window().Get())};
+
+  ASSERT_TRUE(kThread.has_value()) << kThread.error().message();
+  EXPECT_EQ(*kThread, Window().ThreadId());
+  EXPECT_NE(*kThread, GetCurrentThreadId());
+}
+
+TEST_F(WindowDispatchUnit,
+       ExecutesOnTheWindowThreadAndCompletesBeforeReturning) {
+  const auto kResult{rgf::win::OnWindowThread(Window().Get(), &RecordCallback)};
 
   ASSERT_TRUE(kResult.has_value()) << kResult.error().message();
   EXPECT_EQ(Probe().calls.load(), 1);
@@ -172,17 +182,18 @@ TEST_F(GuiDispatchUnit, ExecutesOnTheWindowThreadAndCompletesBeforeReturning) {
   EXPECT_TRUE(Probe().completed.load());
 }
 
-TEST_F(GuiDispatchUnit, CanDispatchAgainAfterThePreviousHookWasRemoved) {
-  ASSERT_TRUE(rgf::telegram::OnGuiThread(Window().Get(), &RecordCallback));
-  ASSERT_TRUE(rgf::telegram::OnGuiThread(Window().Get(), &RecordCallback));
+TEST_F(WindowDispatchUnit, CanDispatchAgainAfterThePreviousHookWasRemoved) {
+  ASSERT_TRUE(rgf::win::OnWindowThread(Window().Get(), &RecordCallback));
+  ASSERT_TRUE(rgf::win::OnWindowThread(Window().Get(), &RecordCallback));
 
   EXPECT_EQ(Probe().calls.load(), 2);
   EXPECT_EQ(Probe().threadId.load(), Window().ThreadId());
 }
 
-TEST_F(GuiDispatchUnit, RetriesBusyWithoutReturningBeforeTheActionCompletes) {
+TEST_F(WindowDispatchUnit,
+       RetriesBusyWithoutReturningBeforeTheActionCompletes) {
   const auto kResult{
-      rgf::telegram::OnGuiThread(Window().Get(), &BusyOnceCallback)};
+      rgf::win::OnWindowThread(Window().Get(), &BusyOnceCallback)};
 
   ASSERT_TRUE(kResult.has_value()) << kResult.error().message();
   EXPECT_EQ(Probe().calls.load(), 2);
@@ -190,22 +201,22 @@ TEST_F(GuiDispatchUnit, RetriesBusyWithoutReturningBeforeTheActionCompletes) {
   EXPECT_TRUE(Probe().completed.load());
 }
 
-TEST_F(GuiDispatchUnit, PreservesCallbackErrorsAndAllowsAnotherSession) {
-  const auto kResult{
-      rgf::telegram::OnGuiThread(Window().Get(), &ErrorCallback)};
+TEST_F(WindowDispatchUnit, PreservesCallbackErrorsAndAllowsAnotherSession) {
+  const auto kResult{rgf::win::OnWindowThread(Window().Get(), &ErrorCallback)};
 
   ASSERT_FALSE(kResult.has_value());
   EXPECT_EQ(kResult.error(),
             std::make_error_code(std::errc::permission_denied));
   EXPECT_EQ(Probe().calls.load(), 1);
-  ASSERT_TRUE(rgf::telegram::OnGuiThread(Window().Get(), &RecordCallback));
+  ASSERT_TRUE(rgf::win::OnWindowThread(Window().Get(), &RecordCallback));
   EXPECT_EQ(Probe().calls.load(), 2);
 }
 
-TEST_F(GuiDispatchUnit, RejectsConcurrentDispatchWhileTheGuiActionIsRunning) {
+TEST_F(WindowDispatchUnit,
+       RejectsConcurrentDispatchWhileTheWindowActionIsRunning) {
   std::expected<void, std::error_code> result;
   std::jthread worker{[this, &result] {
-    result = rgf::telegram::OnGuiThread(Window().Get(), &BlockingCallback);
+    result = rgf::win::OnWindowThread(Window().Get(), &BlockingCallback);
   }};
   const bool kEntered{Probe().entered.try_acquire_for(kCallbackTimeout)};
   EXPECT_TRUE(kEntered);
@@ -218,21 +229,22 @@ TEST_F(GuiDispatchUnit, RejectsConcurrentDispatchWhileTheGuiActionIsRunning) {
   EXPECT_TRUE(Probe().completed.load());
 }
 
-TEST_F(GuiDispatchUnit, RejectsNullCallbacksAndInvalidWindowsBeforeInstalling) {
-  const auto kCallback{rgf::telegram::OnGuiThread(Window().Get(), nullptr)};
+TEST_F(WindowDispatchUnit,
+       RejectsNullCallbacksAndInvalidWindowsBeforeInstalling) {
+  const auto kCallback{rgf::win::OnWindowThread(Window().Get(), nullptr)};
   const std::error_code kExpected{ERROR_INVALID_PARAMETER,
                                   std::system_category()};
   ASSERT_FALSE(kCallback.has_value());
   EXPECT_EQ(kCallback.error(), kExpected);
 
-  const auto kWindow{rgf::telegram::OnGuiThread(nullptr, &RecordCallback)};
+  const auto kWindow{rgf::win::OnWindowThread(nullptr, &RecordCallback)};
   ASSERT_FALSE(kWindow.has_value());
   EXPECT_NE(kWindow.error().value(), 0);
   EXPECT_EQ(Probe().calls.load(), 0);
-  EXPECT_TRUE(rgf::telegram::OnGuiThread(Window().Get(), &RecordCallback));
+  EXPECT_TRUE(rgf::win::OnWindowThread(Window().Get(), &RecordCallback));
 }
 
-TEST_F(GuiDispatchUnit, RejectsCallsFromTheTargetWindowThread) {
+TEST_F(WindowDispatchUnit, RejectsCallsFromTheTargetWindowThread) {
   using WindowOwner =
       std::unique_ptr<std::remove_pointer_t<HWND>, decltype(&DestroyWindow)>;
   const WindowOwner kOwnWindow{
@@ -242,12 +254,12 @@ TEST_F(GuiDispatchUnit, RejectsCallsFromTheTargetWindowThread) {
   ASSERT_NE(kOwnWindow.get(), nullptr);
 
   const auto kResult{
-      rgf::telegram::OnGuiThread(kOwnWindow.get(), &RecordCallback)};
+      rgf::win::OnWindowThread(kOwnWindow.get(), &RecordCallback)};
   const std::error_code kExpected{ERROR_INVALID_PARAMETER,
                                   std::system_category()};
 
   ASSERT_FALSE(kResult.has_value());
   EXPECT_EQ(kResult.error(), kExpected);
   EXPECT_EQ(Probe().calls.load(), 0);
-  EXPECT_TRUE(rgf::telegram::OnGuiThread(Window().Get(), &RecordCallback));
+  EXPECT_TRUE(rgf::win::OnWindowThread(Window().Get(), &RecordCallback));
 }

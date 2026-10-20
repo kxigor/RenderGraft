@@ -18,6 +18,8 @@ add_gtest(win_unit
     protect_guard_unit.cpp
     error_unit.cpp
     module_view_unit.cpp
+    window_unit.cpp
+    window_dispatch_unit.cpp
   LIBRARIES rgf::win project_options project_sanitizers project_coverage
   INCLUDE_DIRECTORIES ${PROJECT_SOURCE_DIR}/tests/unit
   COMPILE_DEFINITIONS

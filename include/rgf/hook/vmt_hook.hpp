@@ -9,6 +9,8 @@
 
 namespace rgf::hook {
 
+// TODO(user): Redesign the poor interface; reconsider move support, an empty
+// moved-from state, and the need for CreateDynamic.
 class VmtHook final : public Hook {
   struct AdoptTag {};
 

@@ -7,7 +7,9 @@
 
 namespace rgf::telegram {
 
+class RenderTarget;
+
 [[nodiscard]] std::expected<void, std::error_code> RefreshWindow(
-    HWND window) noexcept;
+    const RenderTarget& target, HWND window) noexcept;
 
 }  // namespace rgf::telegram

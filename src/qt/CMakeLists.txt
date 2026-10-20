@@ -1,4 +1,8 @@
-add_library(rgf_qt STATIC raster_canvas.cpp raster_text_hook.cpp)
+add_library(rgf_qt STATIC
+  raster_canvas.cpp
+  raster_text_hook.cpp
+  widget_updater.cpp
+)
 add_library(rgf::qt ALIAS rgf_qt)
 
 target_compile_features(rgf_qt PUBLIC cxx_std_23)

@@ -6,9 +6,8 @@ add_library(rgf_telegram SHARED
   dllmain.cpp
   diagnostics.cpp
   diagnostics.hpp
-  gui_dispatch.cpp
-  gui_dispatch.hpp
   internal/build.hpp
+  internal/message.hpp
   raster_marker.cpp
   raster_marker.hpp
   render_probe.cpp

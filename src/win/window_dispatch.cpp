@@ -1,5 +1,3 @@
-#include "gui_dispatch.hpp"
-
 #include <windows.h>
 
 #include <atomic>
@@ -9,21 +7,22 @@
 #include <optional>
 #include <rgf/win/error.hpp>
 #include <rgf/win/module_view.hpp>
+#include <rgf/win/window_dispatch.hpp>
 #include <rgf/win/windows_hook.hpp>
 #include <system_error>
 #include <tuple>
 #include <utility>
 
-namespace rgf::telegram {
+namespace rgf::win {
 
 namespace {
 
 const WCHAR kModuleAnchor{};
 constexpr DWORD kRetryMilliseconds{10};
 
-struct GuiCall {
-  GuiCall(HWND target, UINT command, GuiCallback action,
-          win::WindowsHook ownedHook) noexcept
+struct WindowCall {
+  WindowCall(HWND target, UINT command, WindowCallback action,
+             WindowsHook ownedHook) noexcept
       : kWindow_{target},
         kMessage_{command},
         callback{action},
@@ -31,16 +30,16 @@ struct GuiCall {
 
   HWND__* const kWindow_;
   const UINT kMessage_;
-  std::atomic<GuiCallback> callback;
-  win::WindowsHook hook;
+  std::atomic<WindowCallback> callback;
+  WindowsHook hook;
   std::error_code result;
   bool retry{false};
   std::atomic<bool> complete{false};
 };
 
 struct DispatchState {
-  std::optional<GuiCall> call;
-  std::atomic<GuiCall*> current{nullptr};
+  std::optional<WindowCall> call;
+  std::atomic<WindowCall*> current{nullptr};
   std::atomic_flag busy;
 };
 
@@ -49,8 +48,8 @@ struct DispatchState {
   return state;
 }
 
-[[nodiscard]] GuiCall& CurrentCall() noexcept {
-  GuiCall* const kCall{State().current.load(std::memory_order_acquire)};
+[[nodiscard]] WindowCall& CurrentCall() noexcept {
+  WindowCall* const kCall{State().current.load(std::memory_order_acquire)};
   if (kCall == nullptr) {
     std::terminate();
   }
@@ -83,7 +82,7 @@ void ClearCall() noexcept {
 
 [[nodiscard]] std::expected<void, std::error_code> AbortCall(
     std::error_code error) noexcept {
-  GuiCall& call{CurrentCall()};
+  WindowCall& call{CurrentCall()};
   call.callback.store(nullptr, std::memory_order_release);
   const auto kReset{call.hook.Reset()};
   if (!kReset) {
@@ -95,7 +94,7 @@ void ClearCall() noexcept {
 LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
                           LPARAM messagePointer) noexcept {
   const HookDepth kDepth{};
-  GuiCall* const kCall{State().current.load(std::memory_order_acquire)};
+  WindowCall* const kCall{State().current.load(std::memory_order_acquire)};
   if (code < 0 || kCall == nullptr) {
     return CallNextHookEx(/*hhk = */ nullptr, /*nCode = */ code,
                           /*wParam = */ parameter,
@@ -114,7 +113,8 @@ LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
     return 0;
   }
 
-  const GuiCallback kCallback{kCall->callback.load(std::memory_order_acquire)};
+  const WindowCallback kCallback{
+      kCall->callback.load(std::memory_order_acquire)};
   if (kCallback == nullptr) {
     return 0;
   }
@@ -136,12 +136,12 @@ LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
 }
 
 [[nodiscard]] std::expected<void, std::error_code> PrepareCall(
-    HWND window, GuiCallback callback) {
+    HWND window, WindowCallback callback) {
   DWORD processId{};
   const DWORD kThreadId{GetWindowThreadProcessId(
       /*hWnd = */ window, /*lpdwProcessId = */ &processId)};
   if (kThreadId == 0) {
-    const std::error_code kError{win::LastError()};
+    const std::error_code kError{LastError()};
     return std::unexpected{kError};
   }
   if (processId != GetCurrentProcessId() || kThreadId == GetCurrentThreadId()) {
@@ -149,34 +149,34 @@ LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
         std::error_code{ERROR_INVALID_PARAMETER, std::system_category()}};
   }
 
-  const std::expected<win::ModuleView, std::error_code> kModule{
-      win::ModuleView::FromAddress(&kModuleAnchor)};
+  const std::expected<ModuleView, std::error_code> kModule{
+      ModuleView::FromAddress(&kModuleAnchor)};
   if (!kModule) {
     return std::unexpected{kModule.error()};
   }
   const UINT kMessage{RegisterWindowMessageW(
-      /*lpString = */ L"RenderGraft.Telegram.GuiDispatch")};
+      /*lpString = */ L"RenderGraft.WindowDispatch")};
   if (kMessage == 0) {
-    const std::error_code kError{win::LastError()};
+    const std::error_code kError{LastError()};
     return std::unexpected{kError};
   }
 
-  win::WindowsHook hook{SetWindowsHookExW(/*idHook = */ WH_CALLWNDPROC,
-                                          /*lpfn = */ &Dispatch,
-                                          /*hmod = */ kModule->Get(),
-                                          /*dwThreadId = */ kThreadId)};
+  WindowsHook hook{SetWindowsHookExW(/*idHook = */ WH_CALLWNDPROC,
+                                     /*lpfn = */ &Dispatch,
+                                     /*hmod = */ kModule->Get(),
+                                     /*dwThreadId = */ kThreadId)};
   if (hook.Get() == nullptr) {
-    const std::error_code kError{win::LastError()};
+    const std::error_code kError{LastError()};
     return std::unexpected{kError};
   }
-  GuiCall& call{
+  WindowCall& call{
       State().call.emplace(window, kMessage, callback, std::move(hook))};
   State().current.store(&call, std::memory_order_release);
   return {};
 }
 
 [[nodiscard]] std::expected<void, std::error_code> SendCall() {
-  GuiCall& call{CurrentCall()};
+  WindowCall& call{CurrentCall()};
   for (;;) {
     call.complete.store(false, std::memory_order_release);
     SetLastError(/*dwErrCode = */ ERROR_SUCCESS);
@@ -185,7 +185,7 @@ LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
                                /*wParam = */ std::bit_cast<WPARAM>(&call),
                                /*lParam = */ 0);
     if (!call.complete.load(std::memory_order_acquire)) {
-      const std::error_code kError{win::LastError()};
+      const std::error_code kError{LastError()};
       return AbortCall(
           kError ? kError
                  : std::error_code{ERROR_GEN_FAILURE, std::system_category()});
@@ -209,8 +209,8 @@ LRESULT CALLBACK Dispatch(int code, WPARAM parameter,
 
 }  // namespace
 
-std::expected<void, std::error_code> OnGuiThread(HWND window,
-                                                 GuiCallback callback) {
+std::expected<void, std::error_code> OnWindowThread(HWND window,
+                                                    WindowCallback callback) {
   if (callback == nullptr) {
     return std::unexpected{
         std::error_code{ERROR_INVALID_PARAMETER, std::system_category()}};
@@ -228,4 +228,4 @@ std::expected<void, std::error_code> OnGuiThread(HWND window,
   return SendCall();
 }
 
-}  // namespace rgf::telegram
+}  // namespace rgf::win

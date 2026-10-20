@@ -6,6 +6,7 @@
 #include <bit>
 #include <cstddef>
 #include <cstring>
+#include <rgf/core/cast.hpp>
 #include <rgf/win/error.hpp>
 #include <rgf/win/module_view.hpp>
 #include <span>
@@ -157,20 +158,29 @@ std::expected<RenderTarget, std::error_code> RenderTarget::Locate() {
   return RenderTarget{kBase};
 }
 
-RenderTarget::RenderTarget(std::uintptr_t base) noexcept : kBase_{base} {}
+RenderTarget::RenderTarget(std::uintptr_t base) noexcept : base_{base} {}
 
 hook::Vtable RenderTarget::MessageTable() const noexcept {
   return hook::Vtable{
-      std::bit_cast<void**>(kBase_ + internal::kMessageTableRva)};
+      std::bit_cast<void**>(base_ + internal::kMessageTableRva)};
 }
 
 void** RenderTarget::RasterTable() const noexcept {
-  return std::bit_cast<void**>(kBase_ + internal::kRasterVtableRva);
+  return std::bit_cast<void**>(base_ + internal::kRasterVtableRva);
 }
 
 qt::internal::GetPaintEngine RenderTarget::PaintEngine() const noexcept {
   return std::bit_cast<qt::internal::GetPaintEngine>(
-      kBase_ + internal::kGetPaintEngineRva);
+      base_ + internal::kGetPaintEngineRva);
+}
+
+qt::WidgetUpdater RenderTarget::WidgetUpdates() const noexcept {
+  return qt::WidgetUpdater{core::PointerCast<qt::internal::WidgetMapper**>(
+                               base_ + internal::kWidgetMapperRva),
+                           core::PointerCast<qt::internal::FindWidgetNode>(
+                               base_ + internal::kFindWidgetNodeRva),
+                           core::PointerCast<qt::internal::UpdateWidget>(
+                               base_ + internal::kUpdateWidgetRva)};
 }
 
 }  // namespace rgf::telegram

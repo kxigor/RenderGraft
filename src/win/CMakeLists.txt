@@ -14,6 +14,8 @@ add_library(rgf_win STATIC
   protect_guard.cpp
   module_view.cpp
   windows_hook.cpp
+  window.cpp
+  window_dispatch.cpp
 )
 add_library(rgf::win ALIAS rgf_win)
 

@@ -4,7 +4,6 @@
 
 #include <array>
 #include <atomic>
-#include <bit>
 #include <cstdint>
 #include <cstdio>
 #include <exception>
@@ -13,14 +12,15 @@
 #include <optional>
 #include <rgf/hook/vmt_hook.hpp>
 #include <rgf/qt/raster_text_hook.hpp>
-#include <rgf/win/error.hpp>
+#include <rgf/win/window.hpp>
+#include <rgf/win/window_dispatch.hpp>
 #include <string>
 #include <system_error>
 #include <utility>
 
 #include "diagnostics.hpp"
-#include "gui_dispatch.hpp"
 #include "internal/build.hpp"
+#include "internal/message.hpp"
 #include "raster_marker.hpp"
 #include "render_target.hpp"
 #include "widget_refresh.hpp"
@@ -28,42 +28,6 @@
 namespace rgf::telegram {
 
 namespace {
-
-struct Message;
-struct PaintContext;
-
-using MessageDraw = void (*)(const Message* message,
-                             qt::internal::Painter& painter,
-                             const PaintContext& context);
-
-BOOL CALLBACK FindMainWindow(HWND window, LPARAM parameter) {
-  DWORD process{};
-  if (GetWindowThreadProcessId(/*hWnd = */ window,
-                               /*lpdwProcessId = */ &process) != 0 &&
-      process == GetCurrentProcessId() &&
-      IsWindowVisible(/*hWnd = */ window) != FALSE &&
-      GetWindow(/*hWnd = */ window, /*uCmd = */ GW_OWNER) == nullptr) {
-    *std::bit_cast<HWND*>(parameter) = window;
-    return FALSE;
-  }
-  return TRUE;
-}
-
-[[nodiscard]] std::expected<HWND, std::error_code> MainWindow() noexcept {
-  HWND window{};
-  SetLastError(/*dwErrCode = */ ERROR_SUCCESS);
-  const BOOL kEnumerated{
-      EnumWindows(/*lpEnumFunc = */ &FindMainWindow,
-                  /*lParam = */ std::bit_cast<LPARAM>(&window))};
-  if (window != nullptr) {
-    return window;
-  }
-  if (kEnumerated == FALSE && GetLastError() != ERROR_SUCCESS) {
-    return std::unexpected{win::LastError()};
-  }
-  return std::unexpected{
-      std::error_code{ERROR_NOT_FOUND, std::system_category()}};
-}
 
 class RenderProbe {
  public:
@@ -89,8 +53,9 @@ class RenderProbe {
   CreateMessageHook(const RenderTarget& target);
   [[nodiscard]] static std::error_code Install() noexcept;
   [[nodiscard]] static std::error_code Remove() noexcept;
-  static void Draw(const Message* message, qt::internal::Painter& painter,
-                   const PaintContext& context) noexcept;
+  static void Draw(const internal::Message* message,
+                   qt::internal::Painter& painter,
+                   const internal::PaintContext& context) noexcept;
   static void OnTextDrawn(const qt::RasterCanvas& canvas,
                           const qt::internal::RectF& bounds) noexcept;
   void Report() const noexcept;
@@ -100,7 +65,7 @@ class RenderProbe {
   HWND__* const kWindow_;
   const DWORD kGuiThread_;
   const std::unique_ptr<hook::VmtHook> kMessageHook_;
-  const MessageDraw kOriginal_;
+  const internal::MessageDraw kOriginal_;
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
   std::uint64_t qtTextCalls_{};
@@ -114,7 +79,7 @@ RenderProbe::RenderProbe(RenderTarget target, HWND window, DWORD guiThread,
       kWindow_{window},
       kGuiThread_{guiThread},
       kMessageHook_{std::move(messageHook)},
-      kOriginal_{kMessageHook_->Original<MessageDraw>()} {}
+      kOriginal_{kMessageHook_->Original<internal::MessageDraw>()} {}
 
 std::optional<RenderProbe>& RenderProbe::Storage() noexcept {
   static std::optional<RenderProbe> probe;
@@ -149,7 +114,7 @@ std::error_code RenderProbe::Install() noexcept {
   if (!kInstalled) {
     return kInstalled.error();
   }
-  const auto kRefreshed{RefreshWindow(probe.kWindow_)};
+  const auto kRefreshed{RefreshWindow(probe.kTarget_, probe.kWindow_)};
   return kRefreshed ? std::error_code{} : kRefreshed.error();
 }
 
@@ -165,12 +130,13 @@ std::error_code RenderProbe::Remove() noexcept {
   if (probe.unexpectedThread_.load(std::memory_order_relaxed)) {
     return {ERROR_INVALID_THREAD_ID, std::system_category()};
   }
-  const auto kRefreshed{RefreshWindow(probe.kWindow_)};
+  const auto kRefreshed{RefreshWindow(probe.kTarget_, probe.kWindow_)};
   return kRefreshed ? std::error_code{} : kRefreshed.error();
 }
 
-void RenderProbe::Draw(const Message* message, qt::internal::Painter& painter,
-                       const PaintContext& context) noexcept {
+void RenderProbe::Draw(const internal::Message* message,
+                       qt::internal::Painter& painter,
+                       const internal::PaintContext& context) noexcept {
   auto& probe{Instance()};
   if (GetCurrentThreadId() != probe.kGuiThread_) {
     probe.unexpectedThread_.store(true, std::memory_order_relaxed);
@@ -224,20 +190,19 @@ std::expected<RenderProbe*, std::error_code> RenderProbe::PrepareSession() {
   if (!kTarget) {
     return std::unexpected{kTarget.error()};
   }
-  const auto kWindow{MainWindow()};
+  const auto kWindow{win::FindVisibleUnownedWindow(GetCurrentProcessId())};
   if (!kWindow) {
     return std::unexpected{kWindow.error()};
   }
-  const DWORD kGuiThread{GetWindowThreadProcessId(
-      /*hWnd = */ *kWindow, /*lpdwProcessId = */ nullptr)};
-  if (kGuiThread == 0) {
-    return std::unexpected{win::LastError()};
+  const auto kGuiThread{win::WindowThreadId(*kWindow)};
+  if (!kGuiThread) {
+    return std::unexpected{kGuiThread.error()};
   }
   auto messageHook{CreateMessageHook(*kTarget)};
   if (!messageHook) {
     return std::unexpected{messageHook.error()};
   }
-  return &Storage().emplace(*kTarget, *kWindow, kGuiThread,
+  return &Storage().emplace(*kTarget, *kWindow, *kGuiThread,
                             std::move(*messageHook));
 }
 
@@ -249,7 +214,7 @@ void RenderProbe::Run() {
     return;
   }
   auto& probe{**kProbe};
-  const auto kInstalled{OnGuiThread(probe.kWindow_, &Install)};
+  const auto kInstalled{win::OnWindowThread(probe.kWindow_, &Install)};
   if (!kInstalled) {
     FailDispatch(kInstalled.error(), "installing the rendering hook");
   }
@@ -257,7 +222,7 @@ void RenderProbe::Run() {
   OutputDebugStringA("[rgf/telegram] render marker active for 15 seconds\n");
   constexpr DWORD kProbeDurationMs{15000};
   Sleep(/*dwMilliseconds = */ kProbeDurationMs);
-  const auto kRemoved{OnGuiThread(probe.kWindow_, &Remove)};
+  const auto kRemoved{win::OnWindowThread(probe.kWindow_, &Remove)};
   if (!kRemoved) {
     FailDispatch(kRemoved.error(), "removing the rendering hook");
   }
