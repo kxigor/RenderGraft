@@ -5,9 +5,8 @@
 #include <rgf/core/cast.hpp>
 #include <rgf/qt/internal/abi.hpp>
 #include <rgf/qt/raster_text_hook.hpp>
+#include <rgf/telegram/raster_marker.hpp>
 #include <vector>
-
-#include "raster_marker.hpp"
 
 namespace rgf::qt::internal {
 

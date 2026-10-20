@@ -1,8 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <rgf/telegram/render_target.hpp>
 #include <system_error>
-
-#include "render_target.hpp"
 
 TEST(TelegramRenderTargetUnit, RejectsAnExecutableOutsideTheSupportedBuild) {
   const auto kTarget{rgf::telegram::RenderTarget::Locate()};

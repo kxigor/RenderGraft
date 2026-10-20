@@ -34,6 +34,8 @@ A planned adapter will visually hide sensitive content during screen sharing in 
 
 The initial target is Telegram Desktop 7.3.1 x64 with statically linked Qt 5.15.19. A reversible rendering probe draws test markers through the client's Qt paint engine. The next step is to select the sensitive interface elements and relate them to application state.
 
+The `rgf::telegram` library contains the adapter and rendering probe, with headers under `include/rgf/telegram/` and implementations under `src/telegram/`. The supported build profile is private to `src/telegram/internal/`. The DLL entry point and diagnostic file output remain under `dll/telegram/`; the entry point supplies the probe's report callback. Tests link the adapter library directly.
+
 The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.1), and [Qt 5.15 QWidget documentation](https://doc.qt.io/archives/qt-5.15/qwidget.html).
 
 ### Milestones
@@ -61,7 +63,7 @@ After building `dev-debug`, open a chat with visible messages in the supported 6
 
 The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, opaque purple rectangles cover text rendered through `QRasterPaintEngine::drawTextItem` while `HistoryView::Message::draw` is active. Each rectangle follows the text run's width, ascent, and descent, with a small margin. The Qt hook uses a temporary private vtable on the current paint engine. Hook installation and removal run on the GUI thread.
 
-The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics and call counts are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Other builds are rejected before patching; an uncertain cleanup keeps the DLL loaded and reports the failure.
+The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics and call counts are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
 
 ## Building the current example
 
@@ -97,6 +99,6 @@ The launcher runs without arguments. Its entry point specifies the process name 
 
 The launcher, DLL, and target process must use matching architectures. A successful DLL load and completed callback initialization are separate states: the callback starts asynchronously.
 
-For the Far Cry 3 example, `INSERT` toggles the menu; `Unload` ends the session and unloads the DLL. The Telegram graphics adapter is not implemented yet.
+For the Far Cry 3 example, `INSERT` toggles the menu; `Unload` ends the session and unloads the DLL.
 
 License: [Educational Source-Available License](LICENSE), for educational and non-commercial use.

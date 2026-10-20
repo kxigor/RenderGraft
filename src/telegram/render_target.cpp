@@ -1,5 +1,3 @@
-#include "render_target.hpp"
-
 #include <windows.h>
 
 #include <array>
@@ -7,6 +5,7 @@
 #include <cstddef>
 #include <cstring>
 #include <rgf/core/cast.hpp>
+#include <rgf/telegram/render_target.hpp>
 #include <rgf/win/error.hpp>
 #include <rgf/win/module_view.hpp>
 #include <span>

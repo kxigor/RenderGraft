@@ -1,10 +1,8 @@
-#include "widget_refresh.hpp"
-
 #include <cstdint>
 #include <rgf/core/cast.hpp>
+#include <rgf/telegram/render_target.hpp>
+#include <rgf/telegram/widget_refresh.hpp>
 #include <rgf/win/window.hpp>
-
-#include "render_target.hpp"
 
 namespace rgf::telegram {
 
