@@ -2,31 +2,23 @@
 
 #include <cstddef>
 #include <expected>
-#include <memory>
 #include <rgf/hook/hook.hpp>
 #include <rgf/hook/vtable.hpp>
 #include <system_error>
 
 namespace rgf::hook {
 
-// TODO(user): Redesign the poor interface; reconsider move support, an empty
-// moved-from state, and the need for CreateDynamic.
 class VmtHook final : public Hook {
-  struct AdoptTag {};
-
  public:
+  VmtHook() noexcept = default;
+
   [[nodiscard]] static std::expected<VmtHook, std::error_code> Create(
       Vtable table, std::size_t index) noexcept;
-
-  [[nodiscard]] static std::expected<std::unique_ptr<VmtHook>, std::error_code>
-  CreateDynamic(Vtable table, std::size_t index) noexcept;
-
-  VmtHook(AdoptTag tag, void** slot, void* original) noexcept;
 
   VmtHook(const VmtHook&) = delete;
   VmtHook& operator=(const VmtHook&) = delete;
 
-  VmtHook(VmtHook&&) = delete;
+  VmtHook(VmtHook&& other) noexcept;
   VmtHook& operator=(VmtHook&&) = delete;
 
   ~VmtHook() override;
@@ -36,6 +28,8 @@ class VmtHook final : public Hook {
       override;
 
  private:
+  VmtHook(void** slot, void* original) noexcept;
+
   [[nodiscard]] std::expected<void, std::error_code> SetDetourRaw(
       void* detour) noexcept override;
 
@@ -47,8 +41,8 @@ class VmtHook final : public Hook {
   bool isEnabled_{false};
   void* detour_{nullptr};
 
-  void** const kSlot_{nullptr};
-  void* const kOriginal_{nullptr};
+  void** slot_{nullptr};
+  void* original_{nullptr};
 };
 
 }  // namespace rgf::hook

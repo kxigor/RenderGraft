@@ -284,10 +284,10 @@ class MessageTextHookProtectionFailureUnit : public MessageTextHookUnit {
   void InstallProtectionHook() {
     void** const kImport{FindVirtualProtectExImport()};
     ASSERT_NE(kImport, nullptr);
-    auto createdHook{
-        rgf::hook::VmtHook::CreateDynamic(rgf::hook::Vtable{kImport}, 0)};
+    auto createdHook{rgf::hook::VmtHook::Create(rgf::hook::Vtable{kImport}, 0)};
     ASSERT_TRUE(createdHook.has_value()) << createdHook.error().message();
-    protectionHook_ = std::move(*createdHook);
+    protectionHook_ =
+        std::make_unique<rgf::hook::VmtHook>(std::move(*createdHook));
     Failure().original = protectionHook_->Original<VirtualProtectExFn>();
     ASSERT_TRUE(protectionHook_->SetDetour(&FailNextProtection).has_value());
     ASSERT_TRUE(protectionHook_->Enable().has_value());
@@ -388,13 +388,12 @@ TEST_F(MessageTextHookProtectionFailureUnit,
 }
 
 TEST_F(MessageTextHookProtectionFailureUnit,
-       EnableFailureAfterPatchingKeepsTheCallbackOwnerBound) {
+       EnableIgnoresProtectionRestoreFailureAfterPatching) {
   FailNextChange(PAGE_READONLY);
 
   const auto kEnabled{hook->Enable()};
 
-  ASSERT_FALSE(kEnabled.has_value());
-  EXPECT_EQ(kEnabled.error(), ProtectionError());
+  ASSERT_TRUE(kEnabled.has_value());
   EXPECT_NE(Slot(), rgf::core::PointerCast<void*>(&OriginalMessage));
   EXPECT_FALSE(hook->CanRelease());
   EXPECT_FALSE(hook->IsDetached());
@@ -428,14 +427,13 @@ TEST_F(MessageTextHookProtectionFailureUnit,
 }
 
 TEST_F(MessageTextHookProtectionFailureUnit,
-       DisableRestoreFailurePreservesTheErrorButRestoresOriginalRouting) {
+       DisableIgnoresProtectionRestoreFailureAndRestoresOriginalRouting) {
   ASSERT_TRUE(hook->Enable().has_value());
   FailNextChange(PAGE_READONLY);
 
   const auto kDisabled{hook->Disable()};
 
-  ASSERT_FALSE(kDisabled.has_value());
-  EXPECT_EQ(kDisabled.error(), ProtectionError());
+  ASSERT_TRUE(kDisabled.has_value());
   EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalMessage));
   EXPECT_TRUE(hook->CanRelease());
   EXPECT_TRUE(hook->IsDetached());

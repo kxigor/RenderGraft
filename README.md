@@ -22,6 +22,10 @@ The framework uses the `rgf::*` namespace and CMake aliases, with public headers
 
 `DllMain` delegates to `rgf::module::DllEntry(instance, reason, &OnAttach)`. The `void OnAttach()` callback runs the entire session; before returning, it must finish its work and remove its hooks. `app::Run()` releases session resources and returns, then the callback's local objects are destroyed and the bootstrap unloads the DLL. If an unexpected exception escapes the callback, the worker thread exits and leaves the DLL loaded.
 
+`VmtHook::Create()` returns a hook by value. A hook can be default-constructed empty or move-constructed, transferring ownership even when enabled; move assignment is disabled. An empty hook has no original function, rejects setup and enabling, and can be safely disabled or destroyed.
+
+VMT hook operations return errors that prevent changing the table slot. After a slot change, failure to restore page protection is ignored and does not make `Enable()` or `Disable()` fail.
+
 ## Development direction
 
 Extract a common instrumentation core, graphics backends, and adapters for specific applications. Each additional application should connect through an adapter and the required graphics mechanism; a 2D scenario does not require a game world model. Far Cry 3 remains the working example while the common layer is extracted.

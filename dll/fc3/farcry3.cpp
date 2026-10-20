@@ -41,8 +41,7 @@ const char* FarCry3::Name() const noexcept { return "Far Cry 3"; }
 
 void FarCry3::InstallHooks(app::ScopedHooks& hooks) {
   hooks.Add<games::fc3::UpdateBinding>(
-      hook::VmtHook::CreateDynamic(hook::Vtable{games::fc3::RunAllGroupSlot()},
-                                   0),
+      hook::VmtHook::Create(hook::Vtable{games::fc3::RunAllGroupSlot()}, 0),
       &RunAllGroupDetour, "entity update");
 }
 

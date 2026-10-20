@@ -59,7 +59,7 @@ class MessageTextHook {
   static void OnTextDrawn(const qt::RasterCanvas& canvas,
                           const qt::internal::RectF& bounds) noexcept;
 
-  const std::unique_ptr<hook::VmtHook> kMessageHook_;
+  hook::VmtHook messageHook_;
   void** const kMessageSlot_;
   const internal::MessageDraw kOriginal_;
   const qt::internal::GetPaintEngine kGetPaintEngine_;

@@ -34,7 +34,7 @@ namespace {
 }  // namespace
 
 struct MessageTextHook::MessageBinding {
-  std::unique_ptr<hook::VmtHook> hook;
+  hook::VmtHook hook;
   void** slot;
 };
 
@@ -50,11 +50,11 @@ MessageTextHook::Create(hook::Vtable messageTable,
     return std::unexpected{std::error_code{ERROR_BUSY, std::system_category()}};
   }
   auto messageHook{
-      hook::VmtHook::CreateDynamic(messageTable, internal::kMessageDrawSlot)};
+      hook::VmtHook::Create(messageTable, internal::kMessageDrawSlot)};
   if (!messageHook) {
     return std::unexpected{messageHook.error()};
   }
-  const auto kDetour{(*messageHook)->SetDetour(&Draw)};
+  const auto kDetour{messageHook->SetDetour(&Draw)};
   if (!kDetour) {
     return std::unexpected{kDetour.error()};
   }
@@ -72,9 +72,9 @@ MessageTextHook::MessageTextHook(MessageBinding binding,
                                  qt::internal::GetPaintEngine getter,
                                  void** rasterTable, DWORD guiThread,
                                  TextCallback onText) noexcept
-    : kMessageHook_{std::move(binding.hook)},
+    : messageHook_{std::move(binding.hook)},
       kMessageSlot_{binding.slot},
-      kOriginal_{kMessageHook_->Original<internal::MessageDraw>()},
+      kOriginal_{messageHook_.Original<internal::MessageDraw>()},
       kGetPaintEngine_{getter},
       kRasterTable_{rasterTable},
       kGuiThread_{guiThread},
@@ -133,7 +133,7 @@ std::expected<void, std::error_code> MessageTextHook::Enable() noexcept {
     return std::unexpected{std::error_code{ERROR_BUSY, std::system_category()}};
   }
   attachment_.store(Attachment::Unknown, std::memory_order_release);
-  const auto kEnabled{kMessageHook_->Enable()};
+  const auto kEnabled{messageHook_.Enable()};
   const auto kInspected{InspectSlot()};
   if (!kEnabled) {
     return std::unexpected{kEnabled.error()};
@@ -160,7 +160,7 @@ std::expected<void, std::error_code> MessageTextHook::Disable() noexcept {
     return {};
   }
   attachment_.store(Attachment::Unknown, std::memory_order_release);
-  const auto kDisabled{kMessageHook_->Disable()};
+  const auto kDisabled{messageHook_.Disable()};
   const auto kInspected{InspectSlot()};
   if (!kDisabled) {
     return std::unexpected{kDisabled.error()};

@@ -174,7 +174,7 @@ void RunSession(Game& game) {
 
   ScopedHooks hooks;
   if (!hooks.Add<render::dxgi::PresentBinding>(
-          hook::VmtHook::CreateDynamic(*kTable, render::dxgi::kPresentSlot),
+          hook::VmtHook::Create(*kTable, render::dxgi::kPresentSlot),
           &PresentDetour, "Present")) {
     return;
   }

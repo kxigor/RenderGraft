@@ -5,6 +5,7 @@
 #include <optional>
 #include <rgf/app/log.hpp>
 #include <rgf/hook/hook.hpp>
+#include <rgf/hook/vmt_hook.hpp>
 #include <system_error>
 #include <tuple>
 #include <utility>
@@ -80,6 +81,20 @@ class ScopedHooks {
     while (!entries_.empty()) {
       entries_.pop_back();
     }
+  }
+
+  template <typename Binding, typename Detour>
+  bool Add(std::expected<hook::VmtHook, std::error_code> hook, Detour detour,
+           const char* what) {
+    if (!hook) {
+      LogFailure(what, hook.error());
+      return false;
+    }
+
+    return Add<Binding>(
+        std::expected<std::unique_ptr<hook::Hook>, std::error_code>{
+            std::make_unique<hook::VmtHook>(std::move(*hook))},
+        detour, what);
   }
 
   template <typename Binding, typename Detour>

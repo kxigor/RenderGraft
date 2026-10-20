@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <array>
 #include <expected>
 #include <memory>
 #include <rgf/app/scoped_hooks.hpp>
 #include <rgf/hook/hook.hpp>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -20,8 +22,8 @@ std::vector<std::string>& Journal() noexcept {
   return steps;
 }
 
-void Record(int id, const char* step) {
-  Journal().push_back(std::to_string(id) + ":" + step);
+void Record(int hookId, const char* step) {
+  Journal().push_back(std::to_string(hookId) + ":" + step);
 }
 
 struct Plan {
@@ -33,7 +35,7 @@ void Detour() {}
 
 class FakeHook final : public rgf::hook::Hook {
  public:
-  FakeHook(int id, Plan plan) noexcept : id_{id}, plan_{plan} {}
+  FakeHook(int hookId, Plan plan) noexcept : id_{hookId}, plan_{plan} {}
 
   FakeHook(const FakeHook&) = delete;
   FakeHook& operator=(const FakeHook&) = delete;
@@ -94,11 +96,11 @@ class FakeBinding {
 };
 
 // Returns the concrete type on purpose: the real call sites hand Add a
-// std::expected<std::unique_ptr<VmtHook>, ...>, and this keeps that conversion
-// under test.
+// std::expected<std::unique_ptr<WndProcHook>, ...>, and this keeps that
+// conversion under test.
 [[nodiscard]] std::expected<std::unique_ptr<FakeHook>, std::error_code> AHook(
-    int id, Plan plan = {}) {
-  return std::make_unique<FakeHook>(id, plan);
+    int hookId, Plan plan = {}) {
+  return std::make_unique<FakeHook>(hookId, plan);
 }
 
 [[nodiscard]] std::expected<std::unique_ptr<FakeHook>, std::error_code>
@@ -142,6 +144,38 @@ TEST(ScopedHooksUnit, RejectsAHookThatWasNeverCreated) {
   {
     rgf::app::ScopedHooks hooks;
     EXPECT_FALSE(hooks.Add<FakeBinding>(NoHook(), &Detour, "missing"));
+  }
+
+  EXPECT_TRUE(Journal().empty());
+}
+
+TEST(ScopedHooksUnit, OwnsAValueHookAndRestoresItsSlotAfterTheScope) {
+  Journal().clear();
+  int originalMarker{};
+  std::array<void*, 1> table{&originalMarker};
+
+  {
+    rgf::app::ScopedHooks hooks;
+    ASSERT_TRUE(hooks.Add<FakeBinding>(
+        rgf::hook::VmtHook::Create(rgf::hook::Vtable{table.data()}, 0), &Detour,
+        "value"));
+    EXPECT_NE(table.front(), nullptr);
+    EXPECT_NE(table.front(), &originalMarker);
+    EXPECT_EQ(Journal(), std::vector<std::string>{"bind"});
+  }
+
+  EXPECT_EQ(table.front(), &originalMarker);
+  EXPECT_EQ(Journal(), (std::vector<std::string>{"bind", "~bind"}));
+}
+
+TEST(ScopedHooksUnit, RejectsAValueHookThatWasNeverCreated) {
+  Journal().clear();
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      std::unexpected{std::make_error_code(std::errc::no_such_device)}};
+
+  {
+    rgf::app::ScopedHooks hooks;
+    EXPECT_FALSE(hooks.Add<FakeBinding>(std::move(hook), &Detour, "missing"));
   }
 
   EXPECT_TRUE(Journal().empty());
