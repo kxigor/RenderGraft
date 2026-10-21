@@ -1,42 +1,13 @@
 #include <exception>
 #include <new>
-#include <rgf/core/cast.hpp>
 #include <rgf/qt/raster_text_hook.hpp>
 #include <rgf/telegram/message_text_hook.hpp>
-#include <rgf/win/error.hpp>
 #include <tuple>
 #include <utility>
 
 #include "internal/build.hpp"
 
 namespace rgf::telegram {
-
-namespace {
-
-[[nodiscard]] std::expected<const void*, std::error_code> ReadSlot(
-    void* const* slot) noexcept {
-  const void* function{};
-  SIZE_T read{};
-  if (ReadProcessMemory(/*hProcess = */ GetCurrentProcess(),
-                        /*lpBaseAddress = */ static_cast<LPCVOID>(slot),
-                        /*lpBuffer = */ static_cast<LPVOID>(&function),
-                        /*nSize = */ sizeof(function),
-                        /*lpNumberOfBytesRead = */ &read) == FALSE) {
-    return std::unexpected{win::LastError()};
-  }
-  if (read != sizeof(function)) {
-    return std::unexpected{
-        std::error_code{ERROR_PARTIAL_COPY, std::system_category()}};
-  }
-  return function;
-}
-
-}  // namespace
-
-struct MessageTextHook::MessageBinding {
-  hook::VmtHook hook;
-  void** slot;
-};
 
 std::expected<std::unique_ptr<MessageTextHook>, std::error_code>
 MessageTextHook::Create(hook::Vtable messageTable,
@@ -59,21 +30,19 @@ MessageTextHook::Create(hook::Vtable messageTable,
     return std::unexpected{kDetour.error()};
   }
   std::unique_ptr<MessageTextHook> hook{new (std::nothrow) MessageTextHook{
-      MessageBinding{.hook = std::move(*messageHook),
-                     .slot = messageTable.Slot(internal::kMessageDrawSlot)},
-      getter, rasterTable, guiThread, std::move(onText)}};
+      std::move(*messageHook), getter, rasterTable, guiThread,
+      std::move(onText)}};
   if (!hook) {
     return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
   }
   return hook;
 }
 
-MessageTextHook::MessageTextHook(MessageBinding binding,
+MessageTextHook::MessageTextHook(hook::VmtHook messageHook,
                                  qt::internal::GetPaintEngine getter,
                                  void** rasterTable, DWORD guiThread,
                                  TextCallback onText) noexcept
-    : messageHook_{std::move(binding.hook)},
-      kMessageSlot_{binding.slot},
+    : messageHook_{std::move(messageHook)},
       kOriginal_{messageHook_.Original<internal::MessageDraw>()},
       kGetPaintEngine_{getter},
       kRasterTable_{rasterTable},
@@ -102,24 +71,6 @@ MessageTextHook& MessageTextHook::Current() noexcept {
   return *hook;
 }
 
-std::expected<void, std::error_code> MessageTextHook::InspectSlot() noexcept {
-  attachment_.store(Attachment::Unknown, std::memory_order_release);
-  const auto kFunction{ReadSlot(kMessageSlot_)};
-  if (!kFunction) {
-    return std::unexpected{kFunction.error()};
-  }
-  if (*kFunction == core::PointerCast<void*>(kOriginal_)) {
-    attachment_.store(Attachment::Detached, std::memory_order_release);
-    return {};
-  }
-  if (*kFunction == core::PointerCast<void*>(&Draw)) {
-    attachment_.store(Attachment::Attached, std::memory_order_release);
-    return {};
-  }
-  return std::unexpected{
-      std::make_error_code(std::errc::state_not_recoverable)};
-}
-
 std::expected<void, std::error_code> MessageTextHook::Enable() noexcept {
   if (GetCurrentThreadId() != kGuiThread_) {
     return std::unexpected{
@@ -132,19 +83,11 @@ std::expected<void, std::error_code> MessageTextHook::Enable() noexcept {
       expected != this) {
     return std::unexpected{std::error_code{ERROR_BUSY, std::system_category()}};
   }
-  attachment_.store(Attachment::Unknown, std::memory_order_release);
   const auto kEnabled{messageHook_.Enable()};
-  const auto kInspected{InspectSlot()};
   if (!kEnabled) {
     return std::unexpected{kEnabled.error()};
   }
-  if (!kInspected) {
-    return std::unexpected{kInspected.error()};
-  }
-  if (attachment_.load(std::memory_order_acquire) != Attachment::Attached) {
-    return std::unexpected{
-        std::make_error_code(std::errc::state_not_recoverable)};
-  }
+  isAttached_.store(true, std::memory_order_release);
   return {};
 }
 
@@ -159,26 +102,18 @@ std::expected<void, std::error_code> MessageTextHook::Disable() noexcept {
   if (IsDetached()) {
     return {};
   }
-  attachment_.store(Attachment::Unknown, std::memory_order_release);
   const auto kDisabled{messageHook_.Disable()};
-  const auto kInspected{InspectSlot()};
   if (!kDisabled) {
     return std::unexpected{kDisabled.error()};
   }
-  if (!kInspected) {
-    return std::unexpected{kInspected.error()};
-  }
-  if (!IsDetached()) {
-    return std::unexpected{
-        std::make_error_code(std::errc::state_not_recoverable)};
-  }
+  isAttached_.store(false, std::memory_order_release);
   return {};
 }
 
 bool MessageTextHook::IsDrawing() const noexcept { return drawDepth_ != 0; }
 
 bool MessageTextHook::IsDetached() const noexcept {
-  return attachment_.load(std::memory_order_acquire) == Attachment::Detached;
+  return !isAttached_.load(std::memory_order_acquire);
 }
 
 bool MessageTextHook::CanRelease() const noexcept {

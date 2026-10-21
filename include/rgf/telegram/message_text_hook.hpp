@@ -17,9 +17,6 @@
 namespace rgf::telegram {
 
 class MessageTextHook {
-  struct MessageBinding;
-  enum class Attachment : std::uint8_t { Detached, Attached, Unknown };
-
  public:
   using TextCallback = std::move_only_function<void(
       const qt::RasterCanvas&, const qt::internal::RectF&) const noexcept>;
@@ -45,13 +42,12 @@ class MessageTextHook {
   [[nodiscard]] std::uint64_t MessageCalls() const noexcept;
 
  private:
-  MessageTextHook(MessageBinding binding, qt::internal::GetPaintEngine getter,
-                  void** rasterTable, DWORD guiThread,
-                  TextCallback onText) noexcept;
+  MessageTextHook(hook::VmtHook messageHook,
+                  qt::internal::GetPaintEngine getter, void** rasterTable,
+                  DWORD guiThread, TextCallback onText) noexcept;
 
   [[nodiscard]] static std::atomic<MessageTextHook*>& Active() noexcept;
   [[nodiscard]] static MessageTextHook& Current() noexcept;
-  [[nodiscard]] std::expected<void, std::error_code> InspectSlot() noexcept;
 
   static void Draw(const internal::Message* message,
                    qt::internal::Painter& painter,
@@ -60,13 +56,12 @@ class MessageTextHook {
                           const qt::internal::RectF& bounds) noexcept;
 
   hook::VmtHook messageHook_;
-  void** const kMessageSlot_;
   const internal::MessageDraw kOriginal_;
   const qt::internal::GetPaintEngine kGetPaintEngine_;
   void** const kRasterTable_;
   const DWORD kGuiThread_;
   const TextCallback kOnText_;
-  std::atomic<Attachment> attachment_{Attachment::Detached};
+  std::atomic<bool> isAttached_{false};
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
   std::atomic<bool> unexpectedThread_{false};

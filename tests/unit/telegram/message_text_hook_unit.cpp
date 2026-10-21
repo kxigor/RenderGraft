@@ -9,6 +9,7 @@
 #include <functional>
 #include <memory>
 #include <rgf/core/cast.hpp>
+#include <rgf/hook/error.hpp>
 #include <rgf/hook/vmt_hook.hpp>
 #include <rgf/hook/vtable.hpp>
 #include <rgf/qt/internal/abi.hpp>
@@ -364,6 +365,41 @@ TEST_F(MessageTextHookUnit, DisableDuringDrawDefersWithoutChangingTheBinding) {
   EXPECT_TRUE(hook->CanRelease());
 }
 
+TEST_F(MessageTextHookUnit, RepeatedEnableKeepsTheActiveRouting) {
+  ASSERT_TRUE(hook->Enable().has_value());
+  const void* const kDetour{Slot()};
+
+  const auto kEnabledAgain{hook->Enable()};
+
+  ASSERT_FALSE(kEnabledAgain.has_value());
+  EXPECT_EQ(kEnabledAgain.error(), rgf::hook::Error::HookAlreadyApplied);
+  EXPECT_EQ(Slot(), kDetour);
+  EXPECT_FALSE(hook->IsDetached());
+  EXPECT_FALSE(hook->CanRelease());
+  Draw();
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(*callbackCalls, 1);
+}
+
+TEST_F(MessageTextHookUnit, DisableSucceedsWhenNeverAttachedOrAlreadyDetached) {
+  ASSERT_TRUE(hook->Disable().has_value());
+  EXPECT_TRUE(hook->IsDetached());
+  EXPECT_TRUE(hook->CanRelease());
+  ASSERT_TRUE(hook->Enable().has_value());
+  ASSERT_TRUE(hook->Disable().has_value());
+
+  ASSERT_TRUE(hook->Disable().has_value());
+
+  EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalMessage));
+  EXPECT_TRUE(hook->IsDetached());
+  EXPECT_TRUE(hook->CanRelease());
+  Draw();
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 0);
+  EXPECT_EQ(*callbackCalls, 0);
+}
+
 TEST_F(MessageTextHookUnit, ForeignThreadForwardsOriginalAndRequiresRetention) {
   // The owner deliberately remains retained in the child. Process exit releases
   // its memory after the joined worker has verified the sticky safety latch.
@@ -371,7 +407,7 @@ TEST_F(MessageTextHookUnit, ForeignThreadForwardsOriginalAndRequiresRetention) {
 }
 
 TEST_F(MessageTextHookProtectionFailureUnit,
-       EnableFailureBeforePatchingLeavesTheOwnerReleasable) {
+       EnableFailureBeforePatchingAllowsReleaseOrRetry) {
   FailNextChange(PAGE_READWRITE);
 
   const auto kEnabled{hook->Enable()};
@@ -385,6 +421,14 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   EXPECT_EQ(message.originalCalls, 1);
   EXPECT_EQ(hook->MessageCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
+
+  ASSERT_TRUE(hook->Enable().has_value());
+  EXPECT_FALSE(hook->IsDetached());
+  EXPECT_FALSE(hook->CanRelease());
+  Draw();
+  EXPECT_EQ(message.originalCalls, 2);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(*callbackCalls, 1);
 }
 
 TEST_F(MessageTextHookProtectionFailureUnit,
