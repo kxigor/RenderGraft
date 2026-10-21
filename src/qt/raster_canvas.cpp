@@ -3,7 +3,7 @@
 namespace rgf::qt {
 
 RasterCanvas::RasterCanvas(internal::PaintEngine& engine,
-                           internal::FillColor fillColor) noexcept
+                           internal::FillColorFn fillColor) noexcept
     : kEngine_{engine}, kFillColor_{fillColor} {}
 
 void RasterCanvas::FillRect(const internal::RectF& rectangle,

@@ -69,15 +69,15 @@ struct WidgetMapper {
   WidgetHashData* data;
 };
 
-using GetPaintEngine = PaintEngine* (*)(const Painter* painter);
-using DrawTextItem = void (*)(PaintEngine* engine, const PointF& position,
-                              const TextItem& item);
-using FillColor = void (*)(PaintEngine* engine, const RectF& rectangle,
-                           const Color& color);
-using FindWidgetNode = WidgetHashNode** (*)(const WidgetMapper* mapper,
-                                            const std::uintptr_t& windowId,
-                                            std::uint32_t hash);
-using UpdateWidget = void (*)(Widget* widget);
+using GetPaintEngineFn = PaintEngine* (*)(const Painter* painter);
+using DrawTextItemFn = void (*)(PaintEngine* engine, const PointF& position,
+                                const TextItem& item);
+using FillColorFn = void (*)(PaintEngine* engine, const RectF& rectangle,
+                             const Color& color);
+using FindWidgetNodeFn = WidgetHashNode** (*)(const WidgetMapper* mapper,
+                                              const std::uintptr_t& windowId,
+                                              std::uint32_t hash);
+using UpdateWidgetFn = void (*)(Widget* widget);
 
 inline constexpr std::size_t kRasterVirtualCount{54};
 inline constexpr std::size_t kDrawTextItemSlot{16};

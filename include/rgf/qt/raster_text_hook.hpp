@@ -12,7 +12,7 @@ class RasterTextHook {
                                      const internal::RectF& bounds) noexcept;
 
   RasterTextHook(internal::Painter& painter,
-                 internal::GetPaintEngine getPaintEngine, void** rasterVtable,
+                 internal::GetPaintEngineFn getPaintEngine, void** rasterVtable,
                  AfterTextCallback afterText) noexcept;
 
   RasterTextHook(const RasterTextHook&) = delete;
@@ -34,8 +34,8 @@ class RasterTextHook {
 
   internal::PaintEngine* const kEngine_;
   void** const kOriginalTable_;
-  const internal::DrawTextItem kOriginalDraw_;
-  const internal::FillColor kFillColor_;
+  const internal::DrawTextItemFn kOriginalDraw_;
+  const internal::FillColorFn kFillColor_;
   const AfterTextCallback kAfterText_;
   const RasterTextHook* const kPrevious_;
   std::array<void*, internal::kRasterVirtualCount + 1> table_;

@@ -9,81 +9,75 @@
 
 namespace rgf::integrations::telegram {
 
-std::expected<std::unique_ptr<MessageTextHook>, std::error_code>
-MessageTextHook::Create(hook::Vtable messageTable,
-                        qt::internal::GetPaintEngine getter, void** rasterTable,
-                        DWORD guiThread, TextCallback onText) {
-  if (messageTable.Get() == nullptr || getter == nullptr ||
-      rasterTable == nullptr || guiThread == 0 || !onText) {
-    return std::unexpected{std::make_error_code(std::errc::invalid_argument)};
-  }
-  if (Active().load(std::memory_order_acquire) != nullptr) {
-    return std::unexpected{std::error_code{ERROR_BUSY, std::system_category()}};
-  }
-  auto messageHook{
-      hook::VmtHook::Create(messageTable, internal::kMessageDrawSlot)};
-  if (!messageHook) {
-    return std::unexpected{messageHook.error()};
-  }
-  const auto kDetour{messageHook->SetDetour(&Draw)};
-  if (!kDetour) {
-    return std::unexpected{kDetour.error()};
-  }
-  std::unique_ptr<MessageTextHook> hook{new (std::nothrow) MessageTextHook{
-      std::move(*messageHook), getter, rasterTable, guiThread,
-      std::move(onText)}};
-  if (!hook) {
-    return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
-  }
-  return hook;
+namespace {
+
+[[nodiscard]] std::atomic<MessageTextHook*>& CallbackTargetStorage() noexcept {
+  static std::atomic<MessageTextHook*> target{nullptr};
+  return target;
 }
 
-MessageTextHook::MessageTextHook(hook::VmtHook messageHook,
-                                 qt::internal::GetPaintEngine getter,
-                                 void** rasterTable, DWORD guiThread,
+}  // namespace
+
+std::expected<std::unique_ptr<MessageTextHook>, std::error_code>
+MessageTextHook::Create(hook::Vtable messageTable,
+                        qt::internal::GetPaintEngineFn getPaintEngine,
+                        void** rasterTable, DWORD guiThreadId,
+                        TextCallback onText) {
+  if (messageTable.Get() == nullptr || getPaintEngine == nullptr ||
+      rasterTable == nullptr || guiThreadId == 0 || !onText) {
+    return std::unexpected{std::make_error_code(std::errc::invalid_argument)};
+  }
+  if (CallbackTargetStorage().load(std::memory_order_acquire) != nullptr) {
+    return std::unexpected{std::error_code{ERROR_BUSY, std::system_category()}};
+  }
+  auto messageDrawHook{PrepareMessageDrawHook(messageTable)};
+  if (!messageDrawHook) {
+    return std::unexpected{messageDrawHook.error()};
+  }
+  std::unique_ptr<MessageTextHook> textHook{new (std::nothrow) MessageTextHook{
+      std::move(*messageDrawHook), getPaintEngine, rasterTable, guiThreadId,
+      std::move(onText)}};
+  if (!textHook) {
+    return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
+  }
+  return textHook;
+}
+
+MessageTextHook::MessageTextHook(hook::VmtHook messageDrawHook,
+                                 qt::internal::GetPaintEngineFn getPaintEngine,
+                                 void** rasterTable, DWORD guiThreadId,
                                  TextCallback onText) noexcept
-    : messageHook_{std::move(messageHook)},
-      kOriginal_{messageHook_.Original<internal::MessageDraw>()},
-      kGetPaintEngine_{getter},
+    : messageDrawHook_{std::move(messageDrawHook)},
+      kOriginalMessageDraw_{
+          messageDrawHook_.Original<internal::MessageDrawFn>()},
+      kGetPaintEngine_{getPaintEngine},
       kRasterTable_{rasterTable},
-      kGuiThread_{guiThread},
+      kGuiThreadId_{guiThreadId},
       kOnText_{std::move(onText)} {}
 
 MessageTextHook::~MessageTextHook() {
   if (!CanRelease()) {
     std::terminate();
   }
-  auto* expected{this};
-  std::ignore = Active().compare_exchange_strong(
-      expected, nullptr, std::memory_order_acq_rel, std::memory_order_acquire);
-}
-
-std::atomic<MessageTextHook*>& MessageTextHook::Active() noexcept {
-  static std::atomic<MessageTextHook*> active{nullptr};
-  return active;
-}
-
-MessageTextHook& MessageTextHook::Current() noexcept {
-  auto* hook{Active().load(std::memory_order_acquire)};
-  if (hook == nullptr) {
-    std::terminate();
-  }
-  return *hook;
+  auto* previousTarget{this};
+  std::ignore = CallbackTargetStorage().compare_exchange_strong(
+      previousTarget, nullptr, std::memory_order_acq_rel,
+      std::memory_order_acquire);
 }
 
 std::expected<void, std::error_code> MessageTextHook::Enable() noexcept {
-  if (GetCurrentThreadId() != kGuiThread_) {
+  if (GetCurrentThreadId() != kGuiThreadId_) {
     return std::unexpected{
         std::error_code{ERROR_INVALID_THREAD_ID, std::system_category()}};
   }
-  auto* expected{static_cast<MessageTextHook*>(nullptr)};
-  if (!Active().compare_exchange_strong(expected, this,
-                                        std::memory_order_acq_rel,
-                                        std::memory_order_acquire) &&
-      expected != this) {
+  auto* previousTarget{static_cast<MessageTextHook*>(nullptr)};
+  if (!CallbackTargetStorage().compare_exchange_strong(
+          previousTarget, this, std::memory_order_acq_rel,
+          std::memory_order_acquire) &&
+      previousTarget != this) {
     return std::unexpected{std::error_code{ERROR_BUSY, std::system_category()}};
   }
-  const auto kEnabled{messageHook_.Enable()};
+  const auto kEnabled{messageDrawHook_.Enable()};
   if (!kEnabled) {
     return std::unexpected{kEnabled.error()};
   }
@@ -92,7 +86,7 @@ std::expected<void, std::error_code> MessageTextHook::Enable() noexcept {
 }
 
 std::expected<void, std::error_code> MessageTextHook::Disable() noexcept {
-  if (GetCurrentThreadId() != kGuiThread_) {
+  if (GetCurrentThreadId() != kGuiThreadId_) {
     return std::unexpected{
         std::error_code{ERROR_INVALID_THREAD_ID, std::system_category()}};
   }
@@ -102,12 +96,43 @@ std::expected<void, std::error_code> MessageTextHook::Disable() noexcept {
   if (IsDetached()) {
     return {};
   }
-  const auto kDisabled{messageHook_.Disable()};
+  const auto kDisabled{messageDrawHook_.Disable()};
   if (!kDisabled) {
     return std::unexpected{kDisabled.error()};
   }
   isAttached_.store(false, std::memory_order_release);
   return {};
+}
+
+void MessageTextHook::MessageDrawDetour(
+    const internal::Message* message, qt::internal::Painter& painter,
+    const internal::PaintContext& context) noexcept {
+  RequireCallbackTarget().DrawMessage(message, painter, context);
+}
+
+void MessageTextHook::DrawMessage(
+    const internal::Message* message, qt::internal::Painter& painter,
+    const internal::PaintContext& context) noexcept {
+  if (GetCurrentThreadId() != kGuiThreadId_) {
+    foreignThreadObserved_.store(true, std::memory_order_relaxed);
+    kOriginalMessageDraw_(message, painter, context);
+    return;
+  }
+  ++drawDepth_;
+  ++messageCalls_;
+  {
+    const qt::RasterTextHook kTextHook{painter, kGetPaintEngine_, kRasterTable_,
+                                       &OnTextDrawn};
+    kOriginalMessageDraw_(message, painter, context);
+  }
+  --drawDepth_;
+}
+
+void MessageTextHook::OnTextDrawn(const qt::RasterCanvas& canvas,
+                                  const qt::internal::RectF& bounds) noexcept {
+  auto& target{RequireCallbackTarget()};
+  ++target.textCalls_;
+  target.kOnText_(canvas, bounds);
 }
 
 bool MessageTextHook::IsDrawing() const noexcept { return drawDepth_ != 0; }
@@ -118,7 +143,7 @@ bool MessageTextHook::IsDetached() const noexcept {
 
 bool MessageTextHook::CanRelease() const noexcept {
   return IsDetached() && !IsDrawing() &&
-         !unexpectedThread_.load(std::memory_order_relaxed);
+         !foreignThreadObserved_.load(std::memory_order_relaxed);
 }
 
 std::uint64_t MessageTextHook::MessageCalls() const noexcept {
@@ -127,30 +152,26 @@ std::uint64_t MessageTextHook::MessageCalls() const noexcept {
 
 std::uint64_t MessageTextHook::TextCalls() const noexcept { return textCalls_; }
 
-void MessageTextHook::Draw(const internal::Message* message,
-                           qt::internal::Painter& painter,
-                           const internal::PaintContext& context) noexcept {
-  auto& hook{Current()};
-  if (GetCurrentThreadId() != hook.kGuiThread_) {
-    hook.unexpectedThread_.store(true, std::memory_order_relaxed);
-    hook.kOriginal_(message, painter, context);
-    return;
+std::expected<hook::VmtHook, std::error_code>
+MessageTextHook::PrepareMessageDrawHook(hook::Vtable messageTable) noexcept {
+  auto messageDrawHook{
+      hook::VmtHook::Create(messageTable, internal::kMessageDrawSlot)};
+  if (!messageDrawHook) {
+    return std::unexpected{messageDrawHook.error()};
   }
-  ++hook.drawDepth_;
-  ++hook.messageCalls_;
-  {
-    const qt::RasterTextHook kTextHook{painter, hook.kGetPaintEngine_,
-                                       hook.kRasterTable_, &OnTextDrawn};
-    hook.kOriginal_(message, painter, context);
+  const auto kDetourSet{messageDrawHook->SetDetour(&MessageDrawDetour)};
+  if (!kDetourSet) {
+    return std::unexpected{kDetourSet.error()};
   }
-  --hook.drawDepth_;
+  return messageDrawHook;
 }
 
-void MessageTextHook::OnTextDrawn(const qt::RasterCanvas& canvas,
-                                  const qt::internal::RectF& bounds) noexcept {
-  auto& hook{Current()};
-  ++hook.textCalls_;
-  hook.kOnText_(canvas, bounds);
+MessageTextHook& MessageTextHook::RequireCallbackTarget() noexcept {
+  auto* target{CallbackTargetStorage().load(std::memory_order_acquire)};
+  if (target == nullptr) {
+    std::terminate();
+  }
+  return *target;
 }
 
 }  // namespace rgf::integrations::telegram

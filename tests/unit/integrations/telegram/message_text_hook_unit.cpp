@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <expected>
 #include <functional>
 #include <memory>
 #include <rgf/core/cast.hpp>
@@ -66,7 +67,7 @@ struct ProbeEngine : qt::PaintEngine {
   explicit ProbeEngine(void** table) : PaintEngine{table} {}
 
   void Draw() {
-    rgf::core::PointerCast<qt::DrawTextItem>(vtable[qt::kDrawTextItemSlot])(
+    rgf::core::PointerCast<qt::DrawTextItemFn>(vtable[qt::kDrawTextItemSlot])(
         this, kPosition, kItem);
   }
 
@@ -162,11 +163,19 @@ class MessageTextHookUnit : public ::testing::Test {
   }
 
   void Draw() {
-    rgf::core::PointerCast<telegram::MessageDraw>(Slot())(&message, painter,
-                                                          context);
+    rgf::core::PointerCast<telegram::MessageDrawFn>(Slot())(&message, painter,
+                                                            context);
   }
 
   [[nodiscard]] void* Slot() const { return table[telegram::kMessageDrawSlot]; }
+
+  [[nodiscard]] std::expected<std::unique_ptr<MessageTextHook>, std::error_code>
+  CreateAnotherHook() {
+    return MessageTextHook::Create(
+        rgf::hook::Vtable{table}, &GetPaintEngine, rasterTable.data() + 1,
+        GetCurrentThreadId(),
+        [](const rgf::qt::RasterCanvas&, const qt::RectF&) noexcept {});
+  }
 
   [[nodiscard]] static std::error_code ProtectionError() {
     return {ERROR_ACCESS_DENIED, std::system_category()};
@@ -179,6 +188,32 @@ class MessageTextHookUnit : public ::testing::Test {
     EXPECT_EQ(Slot(), detour);
     EXPECT_FALSE(hook->CanRelease());
     return kRemoved ? std::error_code{} : kRemoved.error();
+  }
+
+  [[nodiscard]] std::error_code DrawNestedMessage() {
+    const void* const kDetour{Slot()};
+    bool enteredNestedDraw{false};
+    std::error_code removalError;
+    message.duringDraw = [this, &enteredNestedDraw, &removalError, kDetour] {
+      if (enteredNestedDraw) {
+        return;
+      }
+      enteredNestedDraw = true;
+      Draw();
+      removalError = DisableDuringDraw(kDetour);
+    };
+    Draw();
+    message.duringDraw = {};
+    return removalError;
+  }
+
+  [[nodiscard]] std::expected<void, std::error_code> DisableOnForeignThread() {
+    std::expected<void, std::error_code> removed{};
+    {
+      const std::jthread kWorker{
+          [this, &removed] { removed = hook->Disable(); }};
+    }
+    return removed;
   }
 
   [[noreturn]] void ExerciseForeignThread() {
@@ -316,6 +351,53 @@ TEST_F(MessageTextHookUnit, CreationDoesNotBindOrInterceptTheOriginal) {
 }
 
 TEST_F(MessageTextHookUnit,
+       CreationIsRejectedUntilTheRegisteredOwnerIsDestroyed) {
+  ASSERT_TRUE(hook->Enable().has_value());
+  const void* const kDetour{Slot()};
+  const std::error_code kBusy{ERROR_BUSY, std::system_category()};
+
+  const auto kWhileAttached{CreateAnotherHook()};
+
+  ASSERT_FALSE(kWhileAttached.has_value());
+  EXPECT_EQ(kWhileAttached.error(), kBusy);
+  EXPECT_EQ(Slot(), kDetour);
+  ASSERT_TRUE(hook->Disable().has_value());
+
+  const auto kAfterDetach{CreateAnotherHook()};
+
+  ASSERT_FALSE(kAfterDetach.has_value());
+  EXPECT_EQ(kAfterDetach.error(), kWhileAttached.error());
+  EXPECT_TRUE(hook->CanRelease());
+  hook.reset();
+
+  auto replacement{CreateAnotherHook()};
+  ASSERT_TRUE(replacement.has_value()) << replacement.error().message();
+  hook = std::move(*replacement);
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 1);
+}
+
+TEST_F(MessageTextHookUnit,
+       DestroyingAnUnregisteredOwnerPreservesAnotherOwnersRouting) {
+  auto unused{CreateAnotherHook()};
+  ASSERT_TRUE(unused.has_value()) << unused.error().message();
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  unused->reset();
+  Draw();
+
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 1);
+  EXPECT_EQ(*callbackCalls, 1);
+}
+
+TEST_F(MessageTextHookUnit,
        RoutesAStatefulCallbackAfterTextAndRestoresTheScopedQtHook) {
   ASSERT_TRUE(hook->Enable().has_value());
   EXPECT_FALSE(hook->CanRelease());
@@ -399,6 +481,23 @@ TEST_F(MessageTextHookUnit, DisableDuringDrawDefersWithoutChangingTheBinding) {
   EXPECT_TRUE(hook->CanRelease());
 }
 
+TEST_F(MessageTextHookUnit, NestedDrawKeepsTheOuterScopeProtected) {
+  ASSERT_TRUE(hook->Enable().has_value());
+  const std::error_code kBusy{ERROR_BUSY, std::system_category()};
+
+  const std::error_code kRemovalError{DrawNestedMessage()};
+
+  EXPECT_EQ(kRemovalError, kBusy);
+  EXPECT_EQ(message.originalCalls, 2);
+  EXPECT_EQ(hook->MessageCalls(), 2);
+  EXPECT_EQ(hook->TextCalls(), 2);
+  EXPECT_EQ(*callbackCalls, 2);
+  EXPECT_FALSE(hook->IsDrawing());
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+  ASSERT_TRUE(hook->Disable().has_value());
+  EXPECT_TRUE(hook->CanRelease());
+}
+
 TEST_F(MessageTextHookUnit, RepeatedEnableKeepsTheActiveRouting) {
   ASSERT_TRUE(hook->Enable().has_value());
   const void* const kDetour{Slot()};
@@ -435,6 +534,21 @@ TEST_F(MessageTextHookUnit, DisableSucceedsWhenNeverAttachedOrAlreadyDetached) {
   EXPECT_EQ(*callbackCalls, 0);
 }
 
+TEST_F(MessageTextHookUnit, ForeignThreadCannotDisableAnAlreadyDetachedOwner) {
+  ASSERT_TRUE(hook->Enable().has_value());
+  ASSERT_TRUE(hook->Disable().has_value());
+  const std::error_code kWrongThread{ERROR_INVALID_THREAD_ID,
+                                     std::system_category()};
+
+  const auto kRemoved{DisableOnForeignThread()};
+
+  ASSERT_FALSE(kRemoved.has_value());
+  EXPECT_EQ(kRemoved.error(), kWrongThread);
+  EXPECT_TRUE(hook->IsDetached());
+  EXPECT_TRUE(hook->CanRelease());
+  EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalMessage));
+}
+
 TEST_F(MessageTextHookUnit, ForeignThreadForwardsOriginalAndRequiresRetention) {
   // The owner deliberately remains retained in the child. Process exit releases
   // its memory after the joined worker has verified the sticky safety latch.
@@ -466,6 +580,35 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   EXPECT_EQ(hook->MessageCalls(), 1);
   EXPECT_EQ(hook->TextCalls(), 1);
   EXPECT_EQ(*callbackCalls, 1);
+}
+
+TEST_F(MessageTextHookProtectionFailureUnit,
+       FailedEnableReservesItsReceiverUntilTheOwnerIsDestroyed) {
+  auto waiting{CreateAnotherHook()};
+  ASSERT_TRUE(waiting.has_value()) << waiting.error().message();
+  FailNextChange(PAGE_READWRITE);
+  const auto kFailed{hook->Enable()};
+  ASSERT_FALSE(kFailed.has_value());
+  EXPECT_EQ(kFailed.error(), ProtectionError());
+  EXPECT_TRUE(hook->CanRelease());
+  auto previousOwner{std::move(hook)};
+  hook = std::move(*waiting);
+  const std::error_code kBusy{ERROR_BUSY, std::system_category()};
+
+  const auto kBlocked{hook->Enable()};
+
+  ASSERT_FALSE(kBlocked.has_value());
+  EXPECT_EQ(kBlocked.error(), kBusy);
+  EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalMessage));
+  EXPECT_TRUE(hook->CanRelease());
+  previousOwner.reset();
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 1);
 }
 
 TEST_F(MessageTextHookProtectionFailureUnit,

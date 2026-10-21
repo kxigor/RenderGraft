@@ -68,7 +68,7 @@ TEST(RasterMarkerUnit, CoversTheTextRunWithOpaquePurpleAfterDrawing) {
       painter, &GetPaintEngine, table.data() + 1,
       &rgf::integrations::telegram::DrawRasterMarker};
 
-  rgf::core::PointerCast<qt::DrawTextItem>(
+  rgf::core::PointerCast<qt::DrawTextItemFn>(
       engine.vtable[qt::kDrawTextItemSlot])(&engine, kPosition, kItem);
 
   EXPECT_EQ(engine.events, (std::vector{Event::Text, Event::Marker}));

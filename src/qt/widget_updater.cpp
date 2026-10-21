@@ -11,7 +11,7 @@ namespace {
 
 [[nodiscard]] std::expected<internal::Widget*, std::error_code> FindWidget(
     const internal::WidgetMapper* mapper, std::uintptr_t windowId,
-    internal::FindWidgetNode findNode) noexcept {
+    internal::FindWidgetNodeFn findNode) noexcept {
   if (mapper == nullptr || mapper->data == nullptr ||
       mapper->data->numBuckets <= 0 || mapper->data->size <= 0) {
     return std::unexpected{
@@ -34,8 +34,8 @@ namespace {
 }  // namespace
 
 WidgetUpdater::WidgetUpdater(internal::WidgetMapper* const* mapper,
-                             internal::FindWidgetNode findNode,
-                             internal::UpdateWidget updateWidget) noexcept
+                             internal::FindWidgetNodeFn findNode,
+                             internal::UpdateWidgetFn updateWidget) noexcept
     : kMapper_{mapper}, kFindNode_{findNode}, kUpdateWidget_{updateWidget} {}
 
 std::expected<void, std::error_code> WidgetUpdater::Update(

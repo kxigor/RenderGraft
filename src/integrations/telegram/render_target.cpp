@@ -168,17 +168,17 @@ void** RenderTarget::RasterTable() const noexcept {
   return std::bit_cast<void**>(base_ + internal::kRasterVtableRva);
 }
 
-qt::internal::GetPaintEngine RenderTarget::PaintEngine() const noexcept {
-  return std::bit_cast<qt::internal::GetPaintEngine>(
+qt::internal::GetPaintEngineFn RenderTarget::PaintEngine() const noexcept {
+  return std::bit_cast<qt::internal::GetPaintEngineFn>(
       base_ + internal::kGetPaintEngineRva);
 }
 
 qt::WidgetUpdater RenderTarget::WidgetUpdates() const noexcept {
   return qt::WidgetUpdater{core::PointerCast<qt::internal::WidgetMapper**>(
                                base_ + internal::kWidgetMapperRva),
-                           core::PointerCast<qt::internal::FindWidgetNode>(
+                           core::PointerCast<qt::internal::FindWidgetNodeFn>(
                                base_ + internal::kFindWidgetNodeRva),
-                           core::PointerCast<qt::internal::UpdateWidget>(
+                           core::PointerCast<qt::internal::UpdateWidgetFn>(
                                base_ + internal::kUpdateWidgetRva)};
 }
 

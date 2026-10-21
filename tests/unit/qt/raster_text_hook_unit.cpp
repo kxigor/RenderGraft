@@ -45,7 +45,7 @@ struct ProbeEngine : qt::PaintEngine {
   explicit ProbeEngine(void** table) : PaintEngine{table} {}
 
   void Draw(const qt::PointF& position, const qt::TextItem& item) {
-    rgf::core::PointerCast<qt::DrawTextItem>(vtable[qt::kDrawTextItemSlot])(
+    rgf::core::PointerCast<qt::DrawTextItemFn>(vtable[qt::kDrawTextItemSlot])(
         this, position, item);
   }
 

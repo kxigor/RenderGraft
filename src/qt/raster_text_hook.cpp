@@ -10,7 +10,7 @@ namespace rgf::qt {
 namespace {
 
 [[nodiscard]] internal::PaintEngine* FindEngine(
-    internal::Painter& painter, internal::GetPaintEngine getPaintEngine,
+    internal::Painter& painter, internal::GetPaintEngineFn getPaintEngine,
     void** rasterVtable) noexcept {
   auto* engine{getPaintEngine(&painter)};
   return engine != nullptr && engine->vtable == rasterVtable ? engine : nullptr;
@@ -39,17 +39,17 @@ namespace {
 }  // namespace
 
 RasterTextHook::RasterTextHook(internal::Painter& painter,
-                               internal::GetPaintEngine getPaintEngine,
+                               internal::GetPaintEngineFn getPaintEngine,
                                void** rasterVtable,
                                AfterTextCallback afterText) noexcept
     : kEngine_{FindEngine(painter, getPaintEngine, rasterVtable)},
       kOriginalTable_{kEngine_ != nullptr ? kEngine_->vtable : nullptr},
       kOriginalDraw_{kOriginalTable_ != nullptr
-                         ? core::PointerCast<internal::DrawTextItem>(
+                         ? core::PointerCast<internal::DrawTextItemFn>(
                                kOriginalTable_[internal::kDrawTextItemSlot])
                          : nullptr},
       kFillColor_{kOriginalTable_ != nullptr
-                      ? core::PointerCast<internal::FillColor>(
+                      ? core::PointerCast<internal::FillColorFn>(
                             kOriginalTable_[internal::kFillColorSlot])
                       : nullptr},
       kAfterText_{afterText},

@@ -23,10 +23,10 @@ class RasterCanvas {
   friend class RasterTextHook;
 
   RasterCanvas(internal::PaintEngine& engine,
-               internal::FillColor fillColor) noexcept;
+               internal::FillColorFn fillColor) noexcept;
 
   internal::PaintEngine& kEngine_;
-  const internal::FillColor kFillColor_;
+  const internal::FillColorFn kFillColor_;
 };
 
 }  // namespace rgf::qt

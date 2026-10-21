@@ -23,8 +23,9 @@ class MessageTextHook {
 
   [[nodiscard]] static std::expected<std::unique_ptr<MessageTextHook>,
                                      std::error_code>
-  Create(hook::Vtable messageTable, qt::internal::GetPaintEngine getter,
-         void** rasterTable, DWORD guiThread, TextCallback onText);
+  Create(hook::Vtable messageTable,
+         qt::internal::GetPaintEngineFn getPaintEngine, void** rasterTable,
+         DWORD guiThreadId, TextCallback onText);
 
   MessageTextHook(const MessageTextHook&) = delete;
   MessageTextHook& operator=(const MessageTextHook&) = delete;
@@ -43,30 +44,35 @@ class MessageTextHook {
   [[nodiscard]] std::uint64_t TextCalls() const noexcept;
 
  private:
-  MessageTextHook(hook::VmtHook messageHook,
-                  qt::internal::GetPaintEngine getter, void** rasterTable,
-                  DWORD guiThread, TextCallback onText) noexcept;
+  MessageTextHook(hook::VmtHook messageDrawHook,
+                  qt::internal::GetPaintEngineFn getPaintEngine,
+                  void** rasterTable, DWORD guiThreadId,
+                  TextCallback onText) noexcept;
 
-  [[nodiscard]] static std::atomic<MessageTextHook*>& Active() noexcept;
-  [[nodiscard]] static MessageTextHook& Current() noexcept;
+  [[nodiscard]] static std::expected<hook::VmtHook, std::error_code>
+  PrepareMessageDrawHook(hook::Vtable messageTable) noexcept;
+  [[nodiscard]] static MessageTextHook& RequireCallbackTarget() noexcept;
 
-  static void Draw(const internal::Message* message,
+  static void MessageDrawDetour(const internal::Message* message,
+                                qt::internal::Painter& painter,
+                                const internal::PaintContext& context) noexcept;
+  void DrawMessage(const internal::Message* message,
                    qt::internal::Painter& painter,
                    const internal::PaintContext& context) noexcept;
   static void OnTextDrawn(const qt::RasterCanvas& canvas,
                           const qt::internal::RectF& bounds) noexcept;
 
-  hook::VmtHook messageHook_;
-  const internal::MessageDraw kOriginal_;
-  const qt::internal::GetPaintEngine kGetPaintEngine_;
+  hook::VmtHook messageDrawHook_;
+  const internal::MessageDrawFn kOriginalMessageDraw_;
+  const qt::internal::GetPaintEngineFn kGetPaintEngine_;
   void** const kRasterTable_;
-  const DWORD kGuiThread_;
+  const DWORD kGuiThreadId_;
   const TextCallback kOnText_;
   std::atomic<bool> isAttached_{false};
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
   std::uint64_t textCalls_{};
-  std::atomic<bool> unexpectedThread_{false};
+  std::atomic<bool> foreignThreadObserved_{false};
 };
 
 }  // namespace rgf::integrations::telegram

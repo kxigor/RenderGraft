@@ -7,8 +7,8 @@ namespace rgf::integrations::telegram::internal {
 struct Message;
 struct PaintContext;
 
-using MessageDraw = void (*)(const Message* message,
-                             qt::internal::Painter& painter,
-                             const PaintContext& context);
+using MessageDrawFn = void (*)(const Message* message,
+                               qt::internal::Painter& painter,
+                               const PaintContext& context);
 
 }  // namespace rgf::integrations::telegram::internal
