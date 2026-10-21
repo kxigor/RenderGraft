@@ -1,6 +1,7 @@
 #pragma once
 
-#include <cstdint>
+#include <windows.h>
+
 #include <expected>
 #include <rgf/qt/internal/abi.hpp>
 #include <system_error>
@@ -22,7 +23,7 @@ class WidgetUpdater {
   ~WidgetUpdater() = default;
 
   [[nodiscard]] std::expected<void, std::error_code> Update(
-      std::uintptr_t windowId) const noexcept;
+      HWND window) const noexcept;
 
  private:
   internal::WidgetMapper* const* const kMapper_;

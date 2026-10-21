@@ -2,10 +2,15 @@
 #include <windows.h>
 
 #include <cstdint>
+#include <expected>
+#include <memory>
 #include <rgf/core/cast.hpp>
 #include <rgf/qt/internal/abi.hpp>
 #include <rgf/qt/widget_updater.hpp>
+#include <rgf/win/error.hpp>
 #include <system_error>
+#include <thread>
+#include <type_traits>
 
 namespace rgf::qt::internal {
 
@@ -19,11 +24,21 @@ namespace {
 
 namespace qt = rgf::qt::internal;
 
-constexpr std::uintptr_t kWindowId{
-    static_cast<std::uintptr_t>(0x0123456789abcdefULL)};
 constexpr std::uint32_t kSeed{0x13579bdf};
-constexpr std::uint32_t kExpectedHash{
-    sizeof(std::uintptr_t) == 8 ? 0x98badcffU : 0x9afc5631U};
+
+using WindowOwner =
+    std::unique_ptr<std::remove_pointer_t<HWND>, decltype(&DestroyWindow)>;
+
+[[nodiscard]] WindowOwner CreateProbeWindow() {
+  auto* const kModule{GetModuleHandleW(nullptr)};
+  if (kModule == nullptr) {
+    return WindowOwner{nullptr, &DestroyWindow};
+  }
+  return WindowOwner{
+      CreateWindowExW(0, L"STATIC", L"RenderGraft Qt widget updater probe",
+                      WS_POPUP, 0, 0, 1, 1, nullptr, nullptr, kModule, nullptr),
+      &DestroyWindow};
+}
 
 struct MapperProbe : qt::WidgetMapper {
   MapperProbe(qt::WidgetHashData* hashData, qt::WidgetHashNode* node)
@@ -50,14 +65,19 @@ struct MapperProbe : qt::WidgetMapper {
 void UpdateWidget(qt::Widget* widget) { ++widget->updateCalls; }
 
 struct FakeQtHost {
+  [[nodiscard]] std::uintptr_t WindowId() const noexcept {
+    return rgf::core::PointerCast<std::uintptr_t>(window.get());
+  }
+
   void ExpectNotFound() const {
-    const auto kResult{updater.Update(kWindowId)};
+    const auto kResult{updater.Update(window.get())};
     ASSERT_FALSE(kResult.has_value());
     const std::error_code kExpected{ERROR_NOT_FOUND, std::system_category()};
     EXPECT_EQ(kResult.error(), kExpected);
     EXPECT_EQ(widget.updateCalls, 0);
   }
 
+  WindowOwner window{CreateProbeWindow()};
   qt::Widget widget{};
   qt::WidgetHashData data{.fakeNext = nullptr,
                           .buckets = nullptr,
@@ -69,23 +89,32 @@ struct FakeQtHost {
                           .numBuckets = 1,
                           .seed = kSeed};
   qt::WidgetHashNode node{
-      .next = nullptr, .hash = 0, .windowId = kWindowId, .widget = &widget};
+      .next = nullptr, .hash = 0, .windowId = WindowId(), .widget = &widget};
   MapperProbe mapper{&data, &node};
   qt::WidgetMapper* currentMapper{&mapper};
   rgf::qt::WidgetUpdater updater{&currentMapper, &FindNode, &UpdateWidget};
 };
 
 void ExpectOneLookupAndUpdate(const MapperProbe& mapper,
-                              const qt::Widget& widget,
-                              std::uint32_t expectedHash) {
+                              const qt::Widget& widget, std::uintptr_t windowId,
+                              std::uint32_t seed) {
   EXPECT_EQ(mapper.findCalls, 1);
-  EXPECT_EQ(mapper.receivedWindowId, kWindowId);
-  EXPECT_EQ(mapper.receivedHash, expectedHash);
+  EXPECT_EQ(mapper.receivedWindowId, windowId);
+  // The host's Qt qHash(quintptr) folds at bit 31 before applying its seed.
+  constexpr unsigned int kHashShift{31};
+  const std::uint32_t kExpectedHash{
+      static_cast<std::uint32_t>(windowId) ^
+      static_cast<std::uint32_t>(windowId >> kHashShift) ^ seed};
+  EXPECT_EQ(mapper.receivedHash, kExpectedHash);
   EXPECT_EQ(widget.updateCalls, 1);
 }
 
 class WidgetUpdaterUnit : public ::testing::Test {
  protected:
+  void SetUp() override {
+    ASSERT_NE(host_.window.get(), nullptr) << rgf::win::LastError().message();
+  }
+
   [[nodiscard]] FakeQtHost& Host() noexcept { return host_; }
 
  private:
@@ -96,15 +125,15 @@ class WidgetUpdaterUnit : public ::testing::Test {
 
 TEST_F(WidgetUpdaterUnit, ForwardsTheWindowIdAndSeededHashAndUpdatesTheWidget) {
   auto& host{Host()};
-  const auto kResult{host.updater.Update(kWindowId)};
+  const auto kResult{host.updater.Update(host.window.get())};
 
   ASSERT_TRUE(kResult.has_value());
-  ExpectOneLookupAndUpdate(host.mapper, host.widget, kExpectedHash);
+  ExpectOneLookupAndUpdate(host.mapper, host.widget, host.WindowId(), kSeed);
 }
 
 TEST_F(WidgetUpdaterUnit, UsesTheCurrentMapperAndItsSeedForEveryUpdate) {
   auto& host{Host()};
-  ASSERT_TRUE(host.updater.Update(kWindowId).has_value());
+  ASSERT_TRUE(host.updater.Update(host.window.get()).has_value());
   qt::Widget otherWidget{};
   qt::WidgetHashData otherData{host.data};
   constexpr std::uint32_t kOtherSeed{0x2468ace0};
@@ -114,13 +143,14 @@ TEST_F(WidgetUpdaterUnit, UsesTheCurrentMapperAndItsSeedForEveryUpdate) {
   MapperProbe otherMapper{&otherData, &otherNode};
   host.currentMapper = &otherMapper;
 
-  const auto kResult{host.updater.Update(kWindowId)};
+  const auto kResult{host.updater.Update(host.window.get())};
 
   ASSERT_TRUE(kResult.has_value());
-  constexpr std::uint32_t kOtherHash{sizeof(std::uintptr_t) == 8 ? 0xaf85ebc0U
-                                                                 : 0xadc3610eU};
-  ExpectOneLookupAndUpdate(host.mapper, host.widget, kExpectedHash);
-  ExpectOneLookupAndUpdate(otherMapper, otherWidget, kOtherHash);
+  ExpectOneLookupAndUpdate(host.mapper, host.widget, host.WindowId(), kSeed);
+  ExpectOneLookupAndUpdate(otherMapper, otherWidget, host.WindowId(),
+                           kOtherSeed);
+  EXPECT_EQ(otherMapper.receivedHash ^ host.mapper.receivedHash,
+            kOtherSeed ^ kSeed);
 }
 
 TEST_F(WidgetUpdaterUnit, RejectsAMissingMapperWithoutCallingHostFunctions) {
@@ -179,7 +209,7 @@ TEST_F(WidgetUpdaterUnit, RejectsTheHashSentinelAsAMissingNode) {
 
 TEST_F(WidgetUpdaterUnit, RejectsANodeForAnotherWindow) {
   auto& host{Host()};
-  host.node.windowId = kWindowId + 1;
+  host.node.windowId = host.WindowId() + 1;
 
   host.ExpectNotFound();
 
@@ -193,4 +223,35 @@ TEST_F(WidgetUpdaterUnit, RejectsANodeWithoutAWidget) {
   host.ExpectNotFound();
 
   EXPECT_EQ(host.mapper.findCalls, 1);
+}
+
+TEST_F(WidgetUpdaterUnit, InvalidWindowPreservesTheWin32ThreadQueryError) {
+  auto& host{Host()};
+  SetLastError(ERROR_SUCCESS);
+
+  const auto kResult{host.updater.Update(nullptr)};
+  const std::error_code kError{rgf::win::LastError()};
+
+  ASSERT_FALSE(kResult.has_value());
+  EXPECT_NE(kError.value(), 0);
+  EXPECT_EQ(kResult.error(), kError);
+  EXPECT_EQ(&kResult.error().category(), &std::system_category());
+  EXPECT_EQ(host.mapper.findCalls, 0);
+  EXPECT_EQ(host.widget.updateCalls, 0);
+}
+
+TEST_F(WidgetUpdaterUnit, RejectsAnotherThreadBeforeCallingHostFunctions) {
+  auto& host{Host()};
+  std::expected<void, std::error_code> result{};
+  {
+    const std::jthread kWorker{
+        [&host, &result] { result = host.updater.Update(host.window.get()); }};
+  }
+
+  ASSERT_FALSE(result.has_value());
+  const std::error_code kExpected{ERROR_INVALID_THREAD_ID,
+                                  std::system_category()};
+  EXPECT_EQ(result.error(), kExpected);
+  EXPECT_EQ(host.mapper.findCalls, 0);
+  EXPECT_EQ(host.widget.updateCalls, 0);
 }

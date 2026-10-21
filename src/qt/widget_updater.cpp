@@ -1,7 +1,9 @@
 #include <windows.h>
 
+#include <cstdint>
 #include <rgf/core/cast.hpp>
 #include <rgf/qt/widget_updater.hpp>
+#include <rgf/win/window.hpp>
 
 namespace rgf::qt {
 
@@ -37,8 +39,17 @@ WidgetUpdater::WidgetUpdater(internal::WidgetMapper* const* mapper,
     : kMapper_{mapper}, kFindNode_{findNode}, kUpdateWidget_{updateWidget} {}
 
 std::expected<void, std::error_code> WidgetUpdater::Update(
-    std::uintptr_t windowId) const noexcept {
-  const auto kWidget{FindWidget(*kMapper_, windowId, kFindNode_)};
+    HWND window) const noexcept {
+  const auto kGuiThread{win::WindowThreadId(window)};
+  if (!kGuiThread) {
+    return std::unexpected{kGuiThread.error()};
+  }
+  if (*kGuiThread != GetCurrentThreadId()) {
+    return std::unexpected{
+        std::error_code{ERROR_INVALID_THREAD_ID, std::system_category()}};
+  }
+  const std::uintptr_t kWindowId{core::PointerCast<std::uintptr_t>(window)};
+  const auto kWidget{FindWidget(*kMapper_, kWindowId, kFindNode_)};
   if (!kWidget) {
     return std::unexpected{kWidget.error()};
   }

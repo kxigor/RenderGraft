@@ -13,7 +13,6 @@
 #include <rgf/integrations/telegram/raster_marker.hpp>
 #include <rgf/integrations/telegram/render_probe.hpp>
 #include <rgf/integrations/telegram/render_target.hpp>
-#include <rgf/integrations/telegram/widget_refresh.hpp>
 #include <rgf/win/window.hpp>
 #include <rgf/win/window_dispatch.hpp>
 #include <stdexcept>
@@ -189,7 +188,7 @@ std::error_code RenderProbe::Remove() noexcept {
 }
 
 void RenderProbe::RequestRepaint() noexcept {
-  const auto kRefreshed{RefreshWindow(kTarget_, kWindow_)};
+  const auto kRefreshed{kTarget_.WidgetUpdates().Update(kWindow_)};
   if (!kRefreshed) {
     repaintError_ = kRefreshed.error();
     return;

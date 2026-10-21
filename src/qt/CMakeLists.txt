@@ -12,6 +12,8 @@ target_include_directories(rgf_qt
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
 )
 
+target_link_libraries(rgf_qt PRIVATE rgf::win)
+
 if(TARGET project_options)
   target_link_libraries(rgf_qt PRIVATE project_options)
 endif()

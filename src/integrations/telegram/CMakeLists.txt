@@ -4,7 +4,6 @@ add_library(rgf_integrations_telegram STATIC
   raster_marker.cpp
   render_probe.cpp
   render_target.cpp
-  widget_refresh.cpp
 )
 add_library(rgf::integrations::telegram ALIAS rgf_integrations_telegram)
 
