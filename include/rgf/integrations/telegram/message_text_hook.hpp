@@ -40,6 +40,7 @@ class MessageTextHook {
   [[nodiscard]] bool IsDetached() const noexcept;
   [[nodiscard]] bool CanRelease() const noexcept;
   [[nodiscard]] std::uint64_t MessageCalls() const noexcept;
+  [[nodiscard]] std::uint64_t TextCalls() const noexcept;
 
  private:
   MessageTextHook(hook::VmtHook messageHook,
@@ -64,6 +65,7 @@ class MessageTextHook {
   std::atomic<bool> isAttached_{false};
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
+  std::uint64_t textCalls_{};
   std::atomic<bool> unexpectedThread_{false};
 };
 

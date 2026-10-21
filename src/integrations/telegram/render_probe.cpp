@@ -3,7 +3,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
-#include <cstdint>
+#include <cstddef>
 #include <cstdio>
 #include <exception>
 #include <expected>
@@ -27,32 +27,16 @@ namespace rgf::integrations::telegram {
 
 namespace {
 
-[[nodiscard]] std::unique_ptr<MessageTextHook> CreateTextHook(
-    const RenderTarget& target, DWORD guiThread,
-    MessageTextHook::TextCallback onText) {
-  auto hook{MessageTextHook::Create(target.MessageTable(), target.PaintEngine(),
-                                    target.RasterTable(), guiThread,
-                                    std::move(onText))};
-  if (!hook) {
-    throw std::system_error{hook.error()};
-  }
-  return std::move(*hook);
-}
-
 class RenderProbe {
  public:
   RenderProbe(RenderTarget target, HWND window, DWORD guiThread,
-              ReportCallback report)
+              ReportCallback report,
+              std::unique_ptr<MessageTextHook> textHook) noexcept
       : kTarget_{target},
         kWindow_{window},
         kGuiThread_{guiThread},
         kReport_{report},
-        kTextHook_{
-            CreateTextHook(target, guiThread,
-                           [this](const qt::RasterCanvas& canvas,
-                                  const qt::internal::RectF& bounds) noexcept {
-                             OnTextDrawn(canvas, bounds);
-                           })} {}
+        kTextHook_{std::move(textHook)} {}
 
   RenderProbe(const RenderProbe&) = delete;
   RenderProbe& operator=(const RenderProbe&) = delete;
@@ -81,16 +65,12 @@ class RenderProbe {
   [[nodiscard]] static std::error_code Install() noexcept;
   [[nodiscard]] static std::error_code Remove() noexcept;
   void RequestRepaint() noexcept;
-  void OnTextDrawn(const qt::RasterCanvas& canvas,
-                   const qt::internal::RectF& bounds) noexcept;
 
   const RenderTarget kTarget_;
   HWND__* const kWindow_;
   const DWORD kGuiThread_;
   const ReportCallback kReport_;
   const std::unique_ptr<MessageTextHook> kTextHook_;
-  std::uint64_t qtTextCalls_{};
-  std::uint64_t markerCalls_{};
   std::error_code dispatchError_;
   std::error_code hookError_;
   std::error_code repaintError_;
@@ -114,10 +94,14 @@ RenderProbe::Create(ReportCallback report) {
     return std::unexpected{kGuiThread.error()};
   }
   try {
+    auto textHook{MessageTextHook::Create(
+        kTarget->MessageTable(), kTarget->PaintEngine(), kTarget->RasterTable(),
+        *kGuiThread, &DrawRasterMarker)};
+    if (!textHook) {
+      return std::unexpected{textHook.error()};
+    }
     return std::make_unique<RenderProbe>(*kTarget, *kWindow, *kGuiThread,
-                                         report);
-  } catch (const std::system_error& error) {
-    return std::unexpected{error.code()};
+                                         report, std::move(*textHook));
   } catch (const std::bad_alloc&) {
     return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
   }
@@ -213,13 +197,6 @@ void RenderProbe::RequestRepaint() noexcept {
   repaintRequested_ = true;
 }
 
-void RenderProbe::OnTextDrawn(const qt::RasterCanvas& canvas,
-                              const qt::internal::RectF& bounds) noexcept {
-  ++qtTextCalls_;
-  DrawRasterMarker(canvas, bounds);
-  ++markerCalls_;
-}
-
 bool RenderProbe::CanRelease() const noexcept {
   return dispatchCompleted_ && kTextHook_->CanRelease();
 }
@@ -247,11 +224,10 @@ void RenderProbe::Report() const noexcept {
   const int kLength{std::snprintf(
       text.data(), text.size(),
       "render_probe=completed\ngui_thread_id=%lu\nmessage_draw_calls=%llu\n"
-      "qt_text_calls=%llu\nmarker_calls=%llu\nhooks_removed=true\n"
+      "qt_text_calls=%llu\nhooks_removed=true\n"
       "repaint_requested=true\ndll_retained=false\n",
       kGuiThread_, static_cast<unsigned long long>(kTextHook_->MessageCalls()),
-      static_cast<unsigned long long>(qtTextCalls_),
-      static_cast<unsigned long long>(markerCalls_))};
+      static_cast<unsigned long long>(kTextHook_->TextCalls()))};
   if (kLength > 0 && static_cast<std::size_t>(kLength) < text.size()) {
     kReport_({text.data(), static_cast<std::size_t>(kLength)});
   }

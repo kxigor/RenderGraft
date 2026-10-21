@@ -143,6 +143,7 @@ class MessageTextHookUnit : public ::testing::Test {
         [this, calls = std::move(calls)](const rgf::qt::RasterCanvas& canvas,
                                          const qt::RectF& bounds) noexcept {
           ++*calls;
+          EXPECT_EQ(hook->TextCalls(), *calls);
           engine.events.push_back(Event::Callback);
           canvas.FillRect(bounds, kColor);
         })};
@@ -187,8 +188,8 @@ class MessageTextHookUnit : public ::testing::Test {
     std::jthread worker{[this] { Draw(); }};
     worker.join();
     if (message.originalCalls != 1 || *callbackCalls != 0 ||
-        hook->MessageCalls() != 0 || hook->CanRelease() ||
-        engine.vtable != rasterTable.data() + 1) {
+        hook->MessageCalls() != 0 || hook->TextCalls() != 0 ||
+        hook->CanRelease() || engine.vtable != rasterTable.data() + 1) {
       std::_Exit(2);
     }
     if (!hook->Disable() || hook->CanRelease() || !hook->IsDetached() ||
@@ -310,6 +311,7 @@ TEST_F(MessageTextHookUnit, CreationDoesNotBindOrInterceptTheOriginal) {
 
   EXPECT_EQ(message.originalCalls, 1);
   EXPECT_EQ(hook->MessageCalls(), 0);
+  EXPECT_EQ(hook->TextCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
 }
 
@@ -325,6 +327,7 @@ TEST_F(MessageTextHookUnit,
   EXPECT_EQ(message.receivedPainter, &painter);
   EXPECT_EQ(message.receivedContext, &context);
   EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 1);
   EXPECT_EQ(*callbackCalls, 1);
   EXPECT_FALSE(hook->IsDrawing());
   EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
@@ -344,7 +347,38 @@ TEST_F(MessageTextHookUnit,
   Draw();
   EXPECT_EQ(message.originalCalls, 2);
   EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 1);
   EXPECT_EQ(*callbackCalls, 1);
+}
+
+TEST_F(MessageTextHookUnit, CountsTextRunsSeparatelyFromMessageDraws) {
+  message.duringDraw = [this] { engine.Draw(); };
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 2);
+  EXPECT_EQ(*callbackCalls, 2);
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+}
+
+TEST_F(MessageTextHookUnit, CountsMessageWithoutTextForAnotherRasterTable) {
+  auto otherRasterTable{MakeRasterTable()};
+  engine.vtable = otherRasterTable.data() + 1;
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 0);
+  EXPECT_EQ(*callbackCalls, 0);
+  EXPECT_EQ(engine.events,
+            (std::vector{Event::Message, Event::Text, Event::Finished}));
+  EXPECT_EQ(engine.vtable, otherRasterTable.data() + 1);
+  engine.vtable = rasterTable.data() + 1;
 }
 
 TEST_F(MessageTextHookUnit, DisableDuringDrawDefersWithoutChangingTheBinding) {
@@ -397,6 +431,7 @@ TEST_F(MessageTextHookUnit, DisableSucceedsWhenNeverAttachedOrAlreadyDetached) {
   Draw();
   EXPECT_EQ(message.originalCalls, 1);
   EXPECT_EQ(hook->MessageCalls(), 0);
+  EXPECT_EQ(hook->TextCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
 }
 
@@ -420,6 +455,7 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   Draw();
   EXPECT_EQ(message.originalCalls, 1);
   EXPECT_EQ(hook->MessageCalls(), 0);
+  EXPECT_EQ(hook->TextCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
 
   ASSERT_TRUE(hook->Enable().has_value());
@@ -428,6 +464,7 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   Draw();
   EXPECT_EQ(message.originalCalls, 2);
   EXPECT_EQ(hook->MessageCalls(), 1);
+  EXPECT_EQ(hook->TextCalls(), 1);
   EXPECT_EQ(*callbackCalls, 1);
 }
 
@@ -484,5 +521,6 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   Draw();
   EXPECT_EQ(message.originalCalls, 1);
   EXPECT_EQ(hook->MessageCalls(), 0);
+  EXPECT_EQ(hook->TextCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
 }

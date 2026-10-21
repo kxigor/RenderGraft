@@ -125,6 +125,8 @@ std::uint64_t MessageTextHook::MessageCalls() const noexcept {
   return messageCalls_;
 }
 
+std::uint64_t MessageTextHook::TextCalls() const noexcept { return textCalls_; }
+
 void MessageTextHook::Draw(const internal::Message* message,
                            qt::internal::Painter& painter,
                            const internal::PaintContext& context) noexcept {
@@ -146,7 +148,9 @@ void MessageTextHook::Draw(const internal::Message* message,
 
 void MessageTextHook::OnTextDrawn(const qt::RasterCanvas& canvas,
                                   const qt::internal::RectF& bounds) noexcept {
-  Current().kOnText_(canvas, bounds);
+  auto& hook{Current()};
+  ++hook.textCalls_;
+  hook.kOnText_(canvas, bounds);
 }
 
 }  // namespace rgf::integrations::telegram
