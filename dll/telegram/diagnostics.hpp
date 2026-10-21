@@ -2,8 +2,8 @@
 
 #include <string_view>
 
-namespace rgf::telegram {
+namespace rgf::integrations::telegram {
 
 void RunDiagnostics(std::string_view details = {}) noexcept;
 
-}  // namespace rgf::telegram
+}  // namespace rgf::integrations::telegram

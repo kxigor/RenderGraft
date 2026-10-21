@@ -1,14 +1,15 @@
 #include <windows.h>
 
+#include <rgf/integrations/telegram/render_probe.hpp>
 #include <rgf/module/entry.hpp>
-#include <rgf/telegram/render_probe.hpp>
 
 #include "diagnostics.hpp"
 
 namespace {
 
 void OnAttach() {
-  rgf::telegram::RunRenderProbe(&rgf::telegram::RunDiagnostics);
+  rgf::integrations::telegram::RunRenderProbe(
+      &rgf::integrations::telegram::RunDiagnostics);
 }
 
 }  // namespace

@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <rgf/esp/internal/panel.hpp>
-#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
 #include <rgf/math/angle.hpp>
 #include <rgf/render/overlay.hpp>
 
@@ -17,7 +17,7 @@ constexpr std::array kRejectionNames{"no vtable",        "not rigid",
                                      "bad box",          "not finite",
                                      "beyond the world", "template spawn"};
 
-static_assert(kRejectionNames.size() == games::fc3::kRejectionCount);
+static_assert(kRejectionNames.size() == integrations::fc3::kRejectionCount);
 
 void ShowAngle(const char* label, float radians) {
   ImGui::Text("%-18s %.4f rad = %.2f deg", label, static_cast<double>(radians),
@@ -25,7 +25,8 @@ void ShowAngle(const char* label, float radians) {
 }
 
 void ShowCensus() {
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
   ImGui::Text("%-18s %u", "in the world", kSnapshot.count);
   ImGui::Text("%-18s %u", "over capacity", kSnapshot.dropped);
   ImGui::Text("%-18s %u", "humanoid boxes", kSnapshot.humanoids);
@@ -37,13 +38,14 @@ void ShowCensus() {
   ImGui::SeparatorText("dropped, by reason");
   ImGui::Text("%-18s %u", "unreadable", kSnapshot.unreadable);
   ImGui::Text("%-18s %u", "not an entity", kSnapshot.foreignClass);
-  for (std::size_t reason{0}; reason < games::fc3::kRejectionCount; ++reason) {
+  for (std::size_t reason{0}; reason < integrations::fc3::kRejectionCount;
+       ++reason) {
     ImGui::Text("%-18s %u", kRejectionNames.at(reason),
                 kSnapshot.rejected.at(reason));
   }
 
   ImGui::SeparatorText("by update-group type");
-  for (std::size_t type{0}; type < games::fc3::kGroupTypes; ++type) {
+  for (std::size_t type{0}; type < integrations::fc3::kGroupTypes; ++type) {
     const std::uint32_t kTaken{kSnapshot.acceptedByType.at(type)};
     const std::uint32_t kLost{kSnapshot.droppedByType.at(type)};
     if (kTaken == 0 && kLost == 0) {
@@ -84,7 +86,8 @@ void ShowPoint(const char* label,
               static_cast<double>(point->y));
 }
 
-void ShowChain(const games::fc3::Diagnostics& report, const ImVec2& display) {
+void ShowChain(const integrations::fc3::Diagnostics& report,
+               const ImVec2& display) {
   ImGui::SeparatorText("chain");
   ShowAddress("module base", report.moduleBase);
   ShowAddress("container addr", report.containerAddress);
@@ -104,7 +107,8 @@ void ShowChain(const games::fc3::Diagnostics& report, const ImVec2& display) {
   ImGui::Text("%-18s %.0f x %.0f  (used)", "imgui display",
               static_cast<double>(display.x), static_cast<double>(display.y));
 
-  const games::fc3::EntityCensus kCensus{games::fc3::LastCensus()};
+  const integrations::fc3::EntityCensus kCensus{
+      integrations::fc3::LastCensus()};
   ImGui::SeparatorText("entities");
   ImGui::Text("%-18s %u", "update frames", kCensus.frames);
   ImGui::Text("%-18s %u", "passes / frame", kCensus.calls);
@@ -115,8 +119,8 @@ void ShowChain(const games::fc3::Diagnostics& report, const ImVec2& display) {
   ShowCensus();
 }
 
-void ShowCamera(const games::fc3::CameraBasis& camera, const math::Vec3& right,
-                float aspect, float verticalFov) {
+void ShowCamera(const integrations::fc3::CameraBasis& camera,
+                const math::Vec3& right, float aspect, float verticalFov) {
   ShowAxis("position", camera.position);
   ShowAxis("forward", camera.forward);
   ShowAxis("up", camera.upAxis);

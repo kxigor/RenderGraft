@@ -7,7 +7,7 @@
 #include <rgf/esp/internal/draw.hpp>
 #include <rgf/esp/internal/panel.hpp>
 #include <rgf/esp/internal/projection.hpp>
-#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
 #include <system_error>
 
 namespace rgf::esp {
@@ -51,14 +51,14 @@ void ShowPanelBody(const math::Vec3& eye, const math::Vec3& forward,
   ShowVtables();
 }
 
-void ShowPanel(const games::fc3::CameraBasis& camera, const ImVec2& display,
-               const Markers& markers) {
+void ShowPanel(const integrations::fc3::CameraBasis& camera,
+               const ImVec2& display, const Markers& markers) {
   const float kAspect{display.x / display.y};
 
   ImGui::SetNextWindowSize(ImVec2{kPanelWidth, kPanelHeight},
                            ImGuiCond_FirstUseEver);
   ImGui::Begin("ESP");
-  ShowChain(games::fc3::Diagnostics::Read(), display);
+  ShowChain(integrations::fc3::Diagnostics::Read(), display);
   ImGui::SeparatorText("camera");
   ShowCamera(camera, camera.right, kAspect,
              math::VerticalFov(camera.fovHorizontalRadians, kAspect));
@@ -81,8 +81,8 @@ void DrawFrame() noexcept {
 
   const bool kPanel{config::Current().espPanel.load()};
   const ImVec2 kDisplay{ImGui::GetIO().DisplaySize};
-  const std::expected<games::fc3::CameraBasis, std::error_code> kCamera{
-      games::fc3::ReadCamera()};
+  const std::expected<integrations::fc3::CameraBasis, std::error_code> kCamera{
+      integrations::fc3::ReadCamera()};
   if (!kCamera) {
     if (kPanel) {
       ShowNoCamera(kCamera.error().message().c_str());

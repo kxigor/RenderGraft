@@ -6,8 +6,8 @@
 #include <rgf/esp/internal/palette.hpp>
 #include <rgf/esp/internal/panel.hpp>
 #include <rgf/esp/internal/projection.hpp>
-#include <rgf/games/fc3/fc3.hpp>
-#include <rgf/games/fc3/internal/kind.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/internal/kind.hpp>
 
 namespace rgf::esp {
 
@@ -21,7 +21,7 @@ constexpr float kMinAimDistance{1.0F};
 constexpr std::int32_t kNoPawnField{-99};
 
 struct Nearby {
-  const games::fc3::EntityInfo* entity{nullptr};
+  const integrations::fc3::EntityInfo* entity{nullptr};
   float distance{0.0F};
 };
 
@@ -29,15 +29,16 @@ using NearbyRows = std::array<Nearby, kNearbyRows>;
 
 [[nodiscard]] Nearby UnderCrosshair(const math::Vec3& eye,
                                     const math::Vec3& forward) noexcept {
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
 
   Nearby hit{};
   Nearby spare{};
   float best{kAimTolerance};
   float fallback{kAimTolerance};
 
-  for (const games::fc3::EntityInfo& kEntity :
-       games::fc3::Entities(kSnapshot)) {
+  for (const integrations::fc3::EntityInfo& kEntity :
+       integrations::fc3::Entities(kSnapshot)) {
     const math::Vec3 kDelta{kEntity.transform.Translation() - eye};
     const float kDistance{kDelta.Length()};
     if (kDistance < kMinAimDistance || kDistance > kDrawDistance) {
@@ -77,13 +78,15 @@ void Insert(NearbyRows& rows, std::size_t& used, const Nearby& row) noexcept {
 }
 
 void ShowNearby(const math::Vec3& eye) {
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
-  const games::fc3::PawnInfo* const kSelf{games::fc3::FindSelf(kSnapshot)};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
+  const integrations::fc3::PawnInfo* const kSelf{
+      integrations::fc3::FindSelf(kSnapshot)};
   NearbyRows rows{};
   std::size_t used{0};
 
-  for (const games::fc3::EntityInfo& kEntity :
-       games::fc3::Entities(kSnapshot)) {
+  for (const integrations::fc3::EntityInfo& kEntity :
+       integrations::fc3::Entities(kSnapshot)) {
     const float kDistance{(kEntity.transform.Translation() - eye).Length()};
     if (kDistance <= kNearbyRange) {
       Insert(rows, used, Nearby{.entity = &kEntity, .distance = kDistance});
@@ -92,19 +95,20 @@ void ShowNearby(const math::Vec3& eye) {
 
   ImGui::SeparatorText("nearest");
   for (std::size_t index{0}; index < used; ++index) {
-    const games::fc3::EntityInfo& kEntity{*rows.at(index).entity};
-    ImGui::Text("%8llX %5.1fm %-8s a%-3d f%-3d",
-                static_cast<std::uint64_t>(kEntity.address),
-                static_cast<double>(rows.at(index).distance),
-                games::fc3::KindName(games::fc3::KindOf(kEntity, kSelf)),
-                kEntity.pawn ? kEntity.pawn->army : kNoPawnField,
-                kEntity.pawn ? kEntity.pawn->faction : kNoPawnField);
+    const integrations::fc3::EntityInfo& kEntity{*rows.at(index).entity};
+    ImGui::Text(
+        "%8llX %5.1fm %-8s a%-3d f%-3d",
+        static_cast<std::uint64_t>(kEntity.address),
+        static_cast<double>(rows.at(index).distance),
+        integrations::fc3::KindName(integrations::fc3::KindOf(kEntity, kSelf)),
+        kEntity.pawn ? kEntity.pawn->army : kNoPawnField,
+        kEntity.pawn ? kEntity.pawn->faction : kNoPawnField);
   }
 }
 
 void ShowInspector(const math::Vec3& eye, const math::Vec3& forward) {
   const Nearby kHit{UnderCrosshair(eye, forward)};
-  const games::fc3::EntityInfo* const kNearest{kHit.entity};
+  const integrations::fc3::EntityInfo* const kNearest{kHit.entity};
 
   ImGui::SeparatorText("crosshair");
   if (kNearest == nullptr) {
@@ -125,7 +129,7 @@ void ShowInspector(const math::Vec3& eye, const math::Vec3& forward) {
     return;
   }
 
-  const games::fc3::PawnInfo& kPawn{*kNearest->pawn};
+  const integrations::fc3::PawnInfo& kPawn{*kNearest->pawn};
   ImGui::Text("%-14s %d  faction %d", "army", kPawn.army, kPawn.faction);
   ImGui::Text("%-14s %u", "agent type", kPawn.agentType);
   ImGui::Text("%-14s own %02X  hostile %02X  reverse %02X", "masks",

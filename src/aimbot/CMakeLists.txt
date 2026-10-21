@@ -19,7 +19,7 @@ target_include_directories(rgf_aimbot
 
 # The snapshot it scores comes from the game binding, and the geometry from
 # rgf::math. Reading the game is somebody else's job.
-target_link_libraries(rgf_aimbot PUBLIC rgf::math rgf::games::fc3)
+target_link_libraries(rgf_aimbot PUBLIC rgf::math rgf::integrations::fc3)
 
 if(TARGET project_options)
   target_link_libraries(rgf_aimbot PRIVATE project_options)

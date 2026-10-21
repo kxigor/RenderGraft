@@ -1,13 +1,13 @@
 # =========================================================
 # rgf::esp  (STATIC)
 # =========================================================
-# Projects entities read through rgf::games::fc3 into screen space and draws
+# Projects entities read through rgf::integrations::fc3 into screen space and draws
 # them over the frame. A consumer of rgf::render and a sibling of rgf::menu, so
 # it runs with settings alone and needs no user interface present. Windows-only,
 # so it is added from src/ only under WIN32.
 #
 # This library is TIED TO ONE TITLE despite the neutral name: it links
-# rgf::games::fc3 below and names EntityInfo, Kind, CameraBasis and Diagnostics
+# rgf::integrations::fc3 below and names EntityInfo, Kind, CameraBasis and Diagnostics
 # in its own internal/ headers. It needs more of an entity than rgf::aimbot does
 # -- the transform and the box for the outlines, the head and spine for the aim
 # box, the kind for the colour -- so untying it from a title is the larger of
@@ -34,7 +34,7 @@ target_include_directories(rgf_esp
 )
 
 target_link_libraries(rgf_esp PUBLIC rgf::config rgf::math)
-target_link_libraries(rgf_esp PRIVATE rgf::render rgf::games::fc3 imgui)
+target_link_libraries(rgf_esp PRIVATE rgf::render rgf::integrations::fc3 imgui)
 
 if(TARGET project_options)
   target_link_libraries(rgf_esp PRIVATE project_options)

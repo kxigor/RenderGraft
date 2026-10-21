@@ -3,8 +3,8 @@
 #include <optional>
 #include <rgf/aimbot/aimbot.hpp>
 #include <rgf/config/config.hpp>
-#include <rgf/games/fc3/fc3.hpp>
-#include <rgf/games/fc3/internal/kind.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/internal/kind.hpp>
 #include <rgf/math/angle.hpp>
 #include <rgf/math/direction.hpp>
 #include <rgf/math/ray.hpp>
@@ -27,8 +27,9 @@ namespace {
   return wanted ? std::optional<float>{priority} : std::nullopt;
 }
 
-[[nodiscard]] std::optional<float> WantedKind(games::fc3::Kind kind) noexcept {
-  using games::fc3::Kind;
+[[nodiscard]] std::optional<float> WantedKind(
+    integrations::fc3::Kind kind) noexcept {
+  using integrations::fc3::Kind;
 
   const config::Settings& kSettings{config::Current()};
   switch (kind) {
@@ -68,54 +69,57 @@ namespace {
 }
 
 [[nodiscard]] std::optional<aimbot::Ranking> RankAgainstSettings(
-    const games::fc3::EntityInfo& entity,
-    const games::fc3::PawnInfo* self) noexcept {
+    const integrations::fc3::EntityInfo& entity,
+    const integrations::fc3::PawnInfo* self) noexcept {
   const std::optional<float> kPriority{PriorityOf(entity, self)};
   if (!kPriority) {
     return std::nullopt;
   }
 
-  return std::optional<aimbot::Ranking>{
-      aimbot::Ranking{/*priority = */ *kPriority,
-                      /*reach    = */ games::fc3::ReachOf(entity.address)}};
+  return std::optional<aimbot::Ranking>{aimbot::Ranking{
+      /*priority = */ *kPriority,
+      /*reach    = */ integrations::fc3::ReachOf(entity.address)}};
 }
 
-[[nodiscard]] math::Ray ViewOf(const games::fc3::CameraBasis& camera) noexcept {
+[[nodiscard]] math::Ray ViewOf(
+    const integrations::fc3::CameraBasis& camera) noexcept {
   return math::Ray{.origin = camera.position, .direction = camera.forward};
 }
 
 }  // namespace
 
-std::optional<float> PriorityOf(const games::fc3::EntityInfo& entity,
-                                const games::fc3::PawnInfo* self) noexcept {
+std::optional<float> PriorityOf(
+    const integrations::fc3::EntityInfo& entity,
+    const integrations::fc3::PawnInfo* self) noexcept {
   if (!entity.pawn || entity.pawn->dead) {
     return std::nullopt;
   }
 
-  return WantedKind(games::fc3::KindOf(entity, self));
+  return WantedKind(integrations::fc3::KindOf(entity, self));
 }
 
 std::optional<aimbot::Target> Pick(
-    const games::fc3::EntitySnapshot& snapshot,
-    const games::fc3::CameraBasis& camera) noexcept {
+    const integrations::fc3::EntitySnapshot& snapshot,
+    const integrations::fc3::CameraBasis& camera) noexcept {
   return aimbot::ChooseTarget(snapshot, ViewOf(camera), ChoiceFromSettings(),
                               &RankAgainstSettings,
-                              games::fc3::FindSelf(snapshot));
+                              integrations::fc3::FindSelf(snapshot));
 }
 
-std::uintptr_t CameraState(const games::fc3::EntitySnapshot& snapshot,
+std::uintptr_t CameraState(const integrations::fc3::EntitySnapshot& snapshot,
                            const math::Vec3& forward) noexcept {
   if (CameraStateCache() != 0 &&
-      games::fc3::ReproducesTheView(CameraStateCache(), forward)) {
+      integrations::fc3::ReproducesTheView(CameraStateCache(), forward)) {
     return CameraStateCache();
   }
 
-  const games::fc3::EntityInfo* const kPlayer{games::fc3::SelfEntity(snapshot)};
+  const integrations::fc3::EntityInfo* const kPlayer{
+      integrations::fc3::SelfEntity(snapshot)};
   if (kPlayer == nullptr) {
     return 0;
   }
   CameraStateCache() =
-      games::fc3::FindViewAngles(kPlayer->address, forward).value_or(0);
+      integrations::fc3::FindViewAngles(kPlayer->address, forward).value_or(0);
 
   return CameraStateCache();
 }
@@ -129,26 +133,28 @@ void UpdateReach() noexcept {
     return;
   }
 
-  const std::expected<games::fc3::CameraBasis, std::error_code> kCamera{
-      games::fc3::ReadCamera()};
+  const std::expected<integrations::fc3::CameraBasis, std::error_code> kCamera{
+      integrations::fc3::ReadCamera()};
   if (!kCamera) {
     return;
   }
 
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
-  const games::fc3::PawnInfo* const kSelf{games::fc3::FindSelf(kSnapshot)};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
+  const integrations::fc3::PawnInfo* const kSelf{
+      integrations::fc3::FindSelf(kSnapshot)};
   const math::Ray kView{ViewOf(*kCamera)};
 
-  for (const games::fc3::EntityInfo& kEntity :
-       games::fc3::Entities(kSnapshot)) {
+  for (const integrations::fc3::EntityInfo& kEntity :
+       integrations::fc3::Entities(kSnapshot)) {
     const std::optional<aimbot::Target> kCandidate{aimbot::CandidateOf(
         kEntity, kView, kChoice, &RankAgainstSettings, kSelf)};
     if (!kCandidate) {
       continue;
     }
 
-    games::fc3::ObserveReach(kCandidate->entity, kCamera->position,
-                             kCandidate->point, frames);
+    integrations::fc3::ObserveReach(kCandidate->entity, kCamera->position,
+                                    kCandidate->point, frames);
   }
 }
 

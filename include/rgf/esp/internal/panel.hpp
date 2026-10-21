@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <rgf/esp/internal/projection.hpp>
-#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
 
 namespace rgf::esp {
 
@@ -23,10 +23,11 @@ void ShowVector(const char* label, const math::Vec3& value);
 void ShowPoint(const char* label,
                const std::optional<math::ScreenPoint>& point);
 
-void ShowChain(const games::fc3::Diagnostics& report, const ImVec2& display);
+void ShowChain(const integrations::fc3::Diagnostics& report,
+               const ImVec2& display);
 
-void ShowCamera(const games::fc3::CameraBasis& camera, const math::Vec3& right,
-                float aspect, float verticalFov);
+void ShowCamera(const integrations::fc3::CameraBasis& camera,
+                const math::Vec3& right, float aspect, float verticalFov);
 
 void ShowMarkers(const ImVec2& display,
                  const std::optional<math::ScreenPoint>& ahead,

@@ -2,20 +2,20 @@
 
 #include <cstdint>
 #include <rgf/esp/internal/palette.hpp>
-#include <rgf/games/fc3/internal/kind.hpp>
-#include <rgf/games/fc3/internal/structs.hpp>
+#include <rgf/integrations/fc3/internal/kind.hpp>
+#include <rgf/integrations/fc3/internal/structs.hpp>
 
 namespace {
 
-using rgf::games::fc3::AgentKind;
-using rgf::games::fc3::Kind;
-using rgf::games::fc3::PawnInfo;
+using rgf::integrations::fc3::AgentKind;
+using rgf::integrations::fc3::Kind;
+using rgf::integrations::fc3::PawnInfo;
 
 [[nodiscard]] PawnInfo Pirate() {
   return PawnInfo{.kind = AgentKind::Pawn,
                   .army = 1,
-                  .faction = rgf::games::fc3::kFactionPirate,
-                  .agentType = rgf::games::fc3::kAgentUnknown,
+                  .faction = rgf::integrations::fc3::kFactionPirate,
+                  .agentType = rgf::integrations::fc3::kAgentUnknown,
                   .ownArmyBit = 0x02,
                   .hostileMask = 0x03,
                   .reverseHostileMask = 0x00,
@@ -27,7 +27,7 @@ using rgf::games::fc3::PawnInfo;
 // Death outranks the kind, so a body is never mistaken for a standing threat at
 // a glance -- which is the whole reason the overlay colours it separately.
 TEST(EspColourUnit, TheDeadKeepTheirOwnColourWhateverTheyWere) {
-  rgf::games::fc3::EntityInfo entity{};
+  rgf::integrations::fc3::EntityInfo entity{};
   entity.pawn = Pirate();
   entity.pawn->dead = true;
 
@@ -41,7 +41,7 @@ TEST(EspColourUnit, TheDeadKeepTheirOwnColourWhateverTheyWere) {
 // does not draw: a missing case would fall through to the prop colour and paint
 // a man green.
 TEST(EspColourUnit, EveryKindHasAColour) {
-  const rgf::games::fc3::EntityInfo kEntity{};
+  const rgf::integrations::fc3::EntityInfo kEntity{};
 
   for (const Kind kKind :
        {Kind::Self, Kind::Enemy, Kind::Ally, Kind::Civilian, Kind::Predator,

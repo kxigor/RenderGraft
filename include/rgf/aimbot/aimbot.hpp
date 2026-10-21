@@ -2,7 +2,7 @@
 
 #include <cstdint>
 #include <optional>
-#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
 #include <rgf/math/angle.hpp>
 #include <rgf/math/ray.hpp>
 #include <rgf/math/scale.hpp>
@@ -34,9 +34,9 @@ struct Target {
   Ranking ranking;
 };
 
-using RankFn =
-    std::optional<Ranking> (*)(const games::fc3::EntityInfo& entity,
-                               const games::fc3::PawnInfo* self) noexcept;
+using RankFn = std::optional<Ranking> (*)(
+    const integrations::fc3::EntityInfo& entity,
+    const integrations::fc3::PawnInfo* self) noexcept;
 
 class Limits {
  public:
@@ -120,16 +120,16 @@ class Choice {
 };
 
 [[nodiscard]] math::Vec3 AimPoint(
-    const games::fc3::EntityInfo& entity) noexcept;
+    const integrations::fc3::EntityInfo& entity) noexcept;
 
 [[nodiscard]] std::optional<Target> CandidateOf(
-    const games::fc3::EntityInfo& entity, const math::Ray& view,
+    const integrations::fc3::EntityInfo& entity, const math::Ray& view,
     const Choice& choice, RankFn rank,
-    const games::fc3::PawnInfo* self) noexcept;
+    const integrations::fc3::PawnInfo* self) noexcept;
 
 [[nodiscard]] std::optional<Target> ChooseTarget(
-    const games::fc3::EntitySnapshot& snapshot, const math::Ray& view,
+    const integrations::fc3::EntitySnapshot& snapshot, const math::Ray& view,
     const Choice& choice, RankFn rank,
-    const games::fc3::PawnInfo* self) noexcept;
+    const integrations::fc3::PawnInfo* self) noexcept;
 
 }  // namespace rgf::aimbot

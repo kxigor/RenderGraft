@@ -3,7 +3,7 @@
 #include <optional>
 #include <rgf/app/log.hpp>
 #include <rgf/config/config.hpp>
-#include <rgf/games/fc3/fc3.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
 #include <system_error>
 
 #include "internal.hpp"
@@ -16,7 +16,7 @@ constexpr std::uint64_t kTraceInterval{60};
 constexpr float kTraceReach{100.0F};
 constexpr std::uint64_t kTraceWait{20};
 
-void LogAnswer(int query, const games::fc3::TraceAnswer& answer) {
+void LogAnswer(int query, const integrations::fc3::TraceAnswer& answer) {
   if (answer.hits == 0) {
     app::Logf("[rgf] trace %d: clear, nothing in the way\n", query);
     return;
@@ -42,8 +42,8 @@ void ProbeTrace() {
   }
 
   if (pending) {
-    const std::optional<games::fc3::TraceAnswer> kAnswer{
-        games::fc3::TraceLook(*pending)};
+    const std::optional<integrations::fc3::TraceAnswer> kAnswer{
+        integrations::fc3::TraceLook(*pending)};
     ++waited;
     if (kAnswer) {
       LogAnswer(*pending, *kAnswer);
@@ -63,13 +63,13 @@ void ProbeTrace() {
     return;
   }
 
-  const std::expected<games::fc3::CameraBasis, std::error_code> kCamera{
-      games::fc3::ReadCamera()};
+  const std::expected<integrations::fc3::CameraBasis, std::error_code> kCamera{
+      integrations::fc3::ReadCamera()};
   if (!kCamera) {
     return;
   }
 
-  pending = games::fc3::TraceSegment(
+  pending = integrations::fc3::TraceSegment(
       kCamera->position, kCamera->position + (kCamera->forward * kTraceReach));
   waited = 0;
   if (!pending) {
@@ -78,9 +78,10 @@ void ProbeTrace() {
 }
 
 void LogStatus(std::uint64_t frames) {
-  const games::fc3::Diagnostics kReport{games::fc3::Diagnostics::Read()};
-  const std::expected<games::fc3::CameraBasis, std::error_code> kCamera{
-      games::fc3::ReadCamera()};
+  const integrations::fc3::Diagnostics kReport{
+      integrations::fc3::Diagnostics::Read()};
+  const std::expected<integrations::fc3::CameraBasis, std::error_code> kCamera{
+      integrations::fc3::ReadCamera()};
 
   if (!kCamera) {
     app::Logf("[rgf] frame %llu | view %llX | %s\n", frames,

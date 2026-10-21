@@ -2,7 +2,7 @@
 # FAR CRY 3 SHIM  (aimbot_fc3.dll)
 # =========================================================
 # The injectable Windows library for one title: DllMain hosting rgf::app with
-# a games::fc3 binding behind it. Produces "aimbot_fc3.dll" (PREFIX "" strips
+# a integrations::fc3 binding behind it. Produces "aimbot_fc3.dll" (PREFIX "" strips
 # the MinGW "lib" prefix). The name carries the title because a second one will
 # sit beside it, and because the injector picks the library by name.
 #
@@ -32,7 +32,7 @@ target_link_libraries(aimbot_fc3
     rgf::aimbot
     rgf::app
     rgf::module
-    rgf::games::fc3   # pulls in rgf::process transitively
+    rgf::integrations::fc3   # pulls in rgf::process transitively
     rgf::esp          # world-to-screen boxes drawn from the frame callback
     rgf::win
 )

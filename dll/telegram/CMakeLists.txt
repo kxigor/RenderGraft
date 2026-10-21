@@ -15,7 +15,7 @@ set_target_properties(rgf_telegram PROPERTIES
 
 target_compile_features(rgf_telegram PRIVATE cxx_std_23)
 
-target_link_libraries(rgf_telegram PRIVATE rgf::module rgf::telegram rgf::win psapi)
+target_link_libraries(rgf_telegram PRIVATE rgf::module rgf::integrations::telegram rgf::win psapi)
 
 if(TARGET project_options)
   target_link_libraries(rgf_telegram PRIVATE project_options)

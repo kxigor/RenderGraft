@@ -18,7 +18,7 @@
 #include <string_view>
 #include <system_error>
 
-namespace rgf::telegram {
+namespace rgf::integrations::telegram {
 
 namespace {
 
@@ -134,4 +134,4 @@ void RunDiagnostics(std::string_view details) noexcept {
   }
 }
 
-}  // namespace rgf::telegram
+}  // namespace rgf::integrations::telegram
