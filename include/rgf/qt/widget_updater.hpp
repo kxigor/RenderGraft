@@ -11,7 +11,6 @@ namespace rgf::qt {
 class WidgetUpdater {
  public:
   WidgetUpdater(internal::WidgetMapper* const* mapper,
-                internal::FindWidgetNodeFn findNode,
                 internal::UpdateWidgetFn updateWidget) noexcept;
 
   WidgetUpdater(const WidgetUpdater&) = delete;
@@ -27,7 +26,6 @@ class WidgetUpdater {
 
  private:
   internal::WidgetMapper* const* const kMapper_;
-  const internal::FindWidgetNodeFn kFindNode_;
   const internal::UpdateWidgetFn kUpdateWidget_;
 };
 

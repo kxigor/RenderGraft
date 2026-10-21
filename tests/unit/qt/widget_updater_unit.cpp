@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
+#include <array>
 #include <cstdint>
 #include <expected>
 #include <memory>
@@ -24,8 +25,6 @@ namespace {
 
 namespace qt = rgf::qt::internal;
 
-constexpr std::uint32_t kSeed{0x13579bdf};
-
 using WindowOwner =
     std::unique_ptr<std::remove_pointer_t<HWND>, decltype(&DestroyWindow)>;
 
@@ -40,74 +39,49 @@ using WindowOwner =
       &DestroyWindow};
 }
 
-struct MapperProbe : qt::WidgetMapper {
-  MapperProbe(qt::WidgetHashData* hashData, qt::WidgetHashNode* node)
-      : WidgetMapper{hashData}, result{node} {}
-
-  mutable qt::WidgetHashNode* result;
-  mutable unsigned int findCalls{};
-  mutable std::uintptr_t receivedWindowId{};
-  mutable std::uint32_t receivedHash{};
-};
-
-[[nodiscard]] qt::WidgetHashNode** FindNode(const qt::WidgetMapper* mapper,
-                                            const std::uintptr_t& windowId,
-                                            std::uint32_t hash) {
-  // Test bindings only pass MapperProbe instances to the host lookup stub.
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-static-cast-downcast)
-  const auto* probe{static_cast<const MapperProbe*>(mapper)};
-  ++probe->findCalls;
-  probe->receivedWindowId = windowId;
-  probe->receivedHash = hash;
-  return &probe->result;
-}
-
 void UpdateWidget(qt::Widget* widget) { ++widget->updateCalls; }
 
 struct FakeQtHost {
+  FakeQtHost() {
+    for (auto& span : spans) {
+      span.offsets.fill(qt::kWidgetHashUnusedEntry);
+    }
+    spans.front().offsets.back() = 1;
+  }
+
   [[nodiscard]] std::uintptr_t WindowId() const noexcept {
     return rgf::core::PointerCast<std::uintptr_t>(window.get());
   }
 
-  void ExpectNotFound() const {
+  void ExpectFailure(DWORD error) const {
     const auto kResult{updater.Update(window.get())};
     ASSERT_FALSE(kResult.has_value());
-    const std::error_code kExpected{ERROR_NOT_FOUND, std::system_category()};
+    const std::error_code kExpected{static_cast<int>(error),
+                                    std::system_category()};
     EXPECT_EQ(kResult.error(), kExpected);
     EXPECT_EQ(widget.updateCalls, 0);
   }
 
   WindowOwner window{CreateProbeWindow()};
   qt::Widget widget{};
-  qt::WidgetHashData data{.fakeNext = nullptr,
-                          .buckets = nullptr,
-                          .referenceCount = 1,
+  std::array<qt::WidgetHashNode, 2> entries{
+      qt::WidgetHashNode{.windowId = WindowId() + 1, .widget = nullptr},
+      qt::WidgetHashNode{.windowId = WindowId(), .widget = &widget}};
+  std::array<qt::WidgetHashSpan, 2> spans{
+      qt::WidgetHashSpan{.offsets = {},
+                         .entries = entries.data(),
+                         .allocated = 2,
+                         .nextFree = 2},
+      qt::WidgetHashSpan{}};
+  qt::WidgetHashData data{.referenceCount = 1,
                           .size = 1,
-                          .nodeSize = 0,
-                          .userNumBits = 0,
-                          .numBits = 0,
-                          .numBuckets = 1,
-                          .seed = kSeed};
-  qt::WidgetHashNode node{
-      .next = nullptr, .hash = 0, .windowId = WindowId(), .widget = &widget};
-  MapperProbe mapper{&data, &node};
+                          .numBuckets = qt::kWidgetHashSpanBucketCount,
+                          .seed = 0,
+                          .spans = spans.data()};
+  qt::WidgetMapper mapper{&data};
   qt::WidgetMapper* currentMapper{&mapper};
-  rgf::qt::WidgetUpdater updater{&currentMapper, &FindNode, &UpdateWidget};
+  rgf::qt::WidgetUpdater updater{&currentMapper, &UpdateWidget};
 };
-
-void ExpectOneLookupAndUpdate(const MapperProbe& mapper,
-                              const qt::Widget& widget, std::uintptr_t windowId,
-                              std::uint32_t seed) {
-  EXPECT_EQ(mapper.findCalls, 1);
-  EXPECT_EQ(mapper.receivedWindowId, windowId);
-  // The host's Qt qHash(quintptr) folds at bit 31 before applying its seed.
-  constexpr unsigned int kHashShift{31};
-  const std::uint32_t kExpectedHash{
-      static_cast<std::uint32_t>(windowId) ^
-      static_cast<std::uint32_t>(windowId >> kHashShift) ^ seed};
-  EXPECT_EQ(mapper.receivedHash, kExpectedHash);
-  EXPECT_EQ(widget.updateCalls, 1);
-}
 
 class WidgetUpdaterUnit : public ::testing::Test {
  protected:
@@ -118,115 +92,172 @@ class WidgetUpdaterUnit : public ::testing::Test {
   [[nodiscard]] FakeQtHost& Host() noexcept { return host_; }
 
  private:
-  FakeQtHost host_{};
+  FakeQtHost host_;
 };
 
 }  // namespace
 
-TEST_F(WidgetUpdaterUnit, ForwardsTheWindowIdAndSeededHashAndUpdatesTheWidget) {
+TEST_F(WidgetUpdaterUnit, UsesTheLiveBucketOffsetToFindAndUpdateTheWidget) {
   auto& host{Host()};
+
   const auto kResult{host.updater.Update(host.window.get())};
 
   ASSERT_TRUE(kResult.has_value());
-  ExpectOneLookupAndUpdate(host.mapper, host.widget, host.WindowId(), kSeed);
+  EXPECT_EQ(host.widget.updateCalls, 1);
 }
 
-TEST_F(WidgetUpdaterUnit, UsesTheCurrentMapperAndItsSeedForEveryUpdate) {
+TEST_F(WidgetUpdaterUnit, UsesTheCurrentMapperAndHashDataForEveryUpdate) {
   auto& host{Host()};
   ASSERT_TRUE(host.updater.Update(host.window.get()).has_value());
   qt::Widget otherWidget{};
+  qt::WidgetHashNode otherNode{.windowId = host.WindowId(),
+                               .widget = &otherWidget};
+  qt::WidgetHashSpan otherSpan{};
+  otherSpan.offsets.fill(qt::kWidgetHashUnusedEntry);
+  otherSpan.offsets.back() = 0;
+  otherSpan.entries = &otherNode;
+  otherSpan.allocated = 1;
   qt::WidgetHashData otherData{host.data};
-  constexpr std::uint32_t kOtherSeed{0x2468ace0};
-  otherData.seed = kOtherSeed;
-  qt::WidgetHashNode otherNode{host.node};
-  otherNode.widget = &otherWidget;
-  MapperProbe otherMapper{&otherData, &otherNode};
+  otherData.spans = &otherSpan;
+  qt::WidgetMapper otherMapper{&otherData};
   host.currentMapper = &otherMapper;
 
   const auto kResult{host.updater.Update(host.window.get())};
 
   ASSERT_TRUE(kResult.has_value());
-  ExpectOneLookupAndUpdate(host.mapper, host.widget, host.WindowId(), kSeed);
-  ExpectOneLookupAndUpdate(otherMapper, otherWidget, host.WindowId(),
-                           kOtherSeed);
-  EXPECT_EQ(otherMapper.receivedHash ^ host.mapper.receivedHash,
-            kOtherSeed ^ kSeed);
+  EXPECT_EQ(host.widget.updateCalls, 1);
+  EXPECT_EQ(otherWidget.updateCalls, 1);
 }
 
-TEST_F(WidgetUpdaterUnit, RejectsAMissingMapperWithoutCallingHostFunctions) {
+TEST_F(WidgetUpdaterUnit, FindsAWidgetInALaterSpan) {
+  auto& host{Host()};
+  host.spans.front().offsets.fill(qt::kWidgetHashUnusedEntry);
+  host.spans.back().offsets.back() = 1;
+  host.spans.back().entries = host.entries.data();
+  host.spans.back().allocated = 2;
+  host.data.numBuckets = host.spans.size() * qt::kWidgetHashSpanBucketCount;
+
+  const auto kResult{host.updater.Update(host.window.get())};
+
+  ASSERT_TRUE(kResult.has_value());
+  EXPECT_EQ(host.widget.updateCalls, 1);
+}
+
+TEST_F(WidgetUpdaterUnit, DoesNotVisitSpansOutsideTheHostBucketCount) {
+  auto& host{Host()};
+  host.spans.front().offsets.fill(qt::kWidgetHashUnusedEntry);
+  host.spans.back().offsets[0] = 1;
+  host.spans.back().entries = host.entries.data();
+  host.spans.back().allocated = 2;
+
+  host.ExpectFailure(ERROR_NOT_FOUND);
+}
+
+TEST_F(WidgetUpdaterUnit, IgnoresAllocatedEntriesWithoutALiveBucket) {
+  auto& host{Host()};
+  host.spans.front().offsets.fill(qt::kWidgetHashUnusedEntry);
+
+  host.ExpectFailure(ERROR_NOT_FOUND);
+}
+
+TEST_F(WidgetUpdaterUnit, RejectsAMissingMapper) {
   auto& host{Host()};
   host.currentMapper = nullptr;
 
-  host.ExpectNotFound();
-
-  EXPECT_EQ(host.mapper.findCalls, 0);
+  host.ExpectFailure(ERROR_NOT_FOUND);
 }
 
 TEST_F(WidgetUpdaterUnit, RejectsAMapperWithoutHashData) {
   auto& host{Host()};
   host.mapper.data = nullptr;
 
-  host.ExpectNotFound();
-
-  EXPECT_EQ(host.mapper.findCalls, 0);
+  host.ExpectFailure(ERROR_NOT_FOUND);
 }
 
 TEST_F(WidgetUpdaterUnit, RejectsAnEmptyWidgetMap) {
   auto& host{Host()};
   host.data.size = 0;
+  host.data.spans = nullptr;
 
-  host.ExpectNotFound();
+  host.ExpectFailure(ERROR_NOT_FOUND);
+}
 
-  EXPECT_EQ(host.mapper.findCalls, 0);
+TEST_F(WidgetUpdaterUnit, RejectsAWidgetMapWithoutSpans) {
+  auto& host{Host()};
+  host.data.spans = nullptr;
+
+  host.ExpectFailure(ERROR_INVALID_DATA);
 }
 
 TEST_F(WidgetUpdaterUnit, RejectsAWidgetMapWithoutBuckets) {
   auto& host{Host()};
   host.data.numBuckets = 0;
 
-  host.ExpectNotFound();
-
-  EXPECT_EQ(host.mapper.findCalls, 0);
+  host.ExpectFailure(ERROR_INVALID_DATA);
 }
 
-TEST_F(WidgetUpdaterUnit, RejectsAMissingNode) {
+TEST_F(WidgetUpdaterUnit, RejectsABucketCountSmallerThanOneSpan) {
   auto& host{Host()};
-  host.mapper.result = nullptr;
+  host.data.numBuckets = qt::kWidgetHashSpanBucketCount / 2;
 
-  host.ExpectNotFound();
-
-  EXPECT_EQ(host.mapper.findCalls, 1);
+  host.ExpectFailure(ERROR_INVALID_DATA);
 }
 
-TEST_F(WidgetUpdaterUnit, RejectsTheHashSentinelAsAMissingNode) {
+TEST_F(WidgetUpdaterUnit, RejectsANonPowerOfTwoBucketCount) {
   auto& host{Host()};
-  host.mapper.result = rgf::core::PointerCast<qt::WidgetHashNode*>(&host.data);
+  constexpr std::size_t kNonPowerOfTwoSpans{3};
+  host.data.numBuckets = qt::kWidgetHashSpanBucketCount * kNonPowerOfTwoSpans;
 
-  host.ExpectNotFound();
+  host.ExpectFailure(ERROR_INVALID_DATA);
+}
 
-  EXPECT_EQ(host.mapper.findCalls, 1);
+TEST_F(WidgetUpdaterUnit, RejectsASizeLargerThanTheBucketCount) {
+  auto& host{Host()};
+  host.data.size = host.data.numBuckets + 1;
+
+  host.ExpectFailure(ERROR_INVALID_DATA);
+}
+
+TEST_F(WidgetUpdaterUnit, RejectsALiveBucketWithoutEntryStorage) {
+  auto& host{Host()};
+  host.spans.front().entries = nullptr;
+
+  host.ExpectFailure(ERROR_INVALID_DATA);
+}
+
+TEST_F(WidgetUpdaterUnit, RejectsAnEntryOffsetOutsideAllocatedStorage) {
+  auto& host{Host()};
+  host.spans.front().allocated = 1;
+
+  host.ExpectFailure(ERROR_INVALID_DATA);
+}
+
+TEST_F(WidgetUpdaterUnit, RejectsAnAllocationLargerThanASpan) {
+  auto& host{Host()};
+  host.spans.front().allocated = qt::kWidgetHashSpanBucketCount + 1;
+
+  host.ExpectFailure(ERROR_INVALID_DATA);
 }
 
 TEST_F(WidgetUpdaterUnit, RejectsANodeForAnotherWindow) {
   auto& host{Host()};
-  host.node.windowId = host.WindowId() + 1;
+  ++host.entries.back().windowId;
 
-  host.ExpectNotFound();
-
-  EXPECT_EQ(host.mapper.findCalls, 1);
+  host.ExpectFailure(ERROR_NOT_FOUND);
 }
 
 TEST_F(WidgetUpdaterUnit, RejectsANodeWithoutAWidget) {
   auto& host{Host()};
-  host.node.widget = nullptr;
+  host.entries.back().widget = nullptr;
 
-  host.ExpectNotFound();
-
-  EXPECT_EQ(host.mapper.findCalls, 1);
+  host.ExpectFailure(ERROR_NOT_FOUND);
 }
 
 TEST_F(WidgetUpdaterUnit, InvalidWindowPreservesTheWin32ThreadQueryError) {
   auto& host{Host()};
+  // A deliberately unreadable mapper proves the thread query precedes lookup.
+  host.currentMapper =
+      rgf::core::PointerCast<qt::WidgetMapper*>(std::uintptr_t{1});
   SetLastError(ERROR_SUCCESS);
 
   const auto kResult{host.updater.Update(nullptr)};
@@ -236,12 +267,14 @@ TEST_F(WidgetUpdaterUnit, InvalidWindowPreservesTheWin32ThreadQueryError) {
   EXPECT_NE(kError.value(), 0);
   EXPECT_EQ(kResult.error(), kError);
   EXPECT_EQ(&kResult.error().category(), &std::system_category());
-  EXPECT_EQ(host.mapper.findCalls, 0);
   EXPECT_EQ(host.widget.updateCalls, 0);
 }
 
-TEST_F(WidgetUpdaterUnit, RejectsAnotherThreadBeforeCallingHostFunctions) {
+TEST_F(WidgetUpdaterUnit, RejectsAnotherThreadBeforeAccessingTheMapper) {
   auto& host{Host()};
+  // A deliberately unreadable mapper makes the ordering observable.
+  host.currentMapper =
+      rgf::core::PointerCast<qt::WidgetMapper*>(std::uintptr_t{1});
   std::expected<void, std::error_code> result{};
   {
     const std::jthread kWorker{
@@ -252,6 +285,5 @@ TEST_F(WidgetUpdaterUnit, RejectsAnotherThreadBeforeCallingHostFunctions) {
   const std::error_code kExpected{ERROR_INVALID_THREAD_ID,
                                   std::system_category()};
   EXPECT_EQ(result.error(), kExpected);
-  EXPECT_EQ(host.mapper.findCalls, 0);
   EXPECT_EQ(host.widget.updateCalls, 0);
 }

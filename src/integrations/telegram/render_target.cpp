@@ -104,10 +104,10 @@ namespace {
   if (!kGetter) {
     return kGetter;
   }
-  const auto kFind{CheckFunction(base + internal::kFindWidgetNodeRva,
-                                 internal::kFindWidgetNodeCode)};
-  if (!kFind) {
-    return kFind;
+  const auto kWidgetId{CheckFunction(base + internal::kSetWidgetIdRva,
+                                     internal::kSetWidgetIdCode)};
+  if (!kWidgetId) {
+    return kWidgetId;
   }
   return CheckFunction(base + internal::kUpdateWidgetRva,
                        internal::kUpdateWidgetCode);
@@ -176,8 +176,6 @@ qt::internal::GetPaintEngineFn RenderTarget::PaintEngine() const noexcept {
 qt::WidgetUpdater RenderTarget::WidgetUpdates() const noexcept {
   return qt::WidgetUpdater{core::PointerCast<qt::internal::WidgetMapper**>(
                                base_ + internal::kWidgetMapperRva),
-                           core::PointerCast<qt::internal::FindWidgetNodeFn>(
-                               base_ + internal::kFindWidgetNodeRva),
                            core::PointerCast<qt::internal::UpdateWidgetFn>(
                                base_ + internal::kUpdateWidgetRva)};
 }

@@ -36,11 +36,11 @@ TODO: Design a coherent logging architecture with singleton access and logger fa
 
 A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
 
-The initial target is Telegram Desktop 7.3.1 x64 with statically linked Qt 5.15.19. A reversible rendering probe draws test markers through the client's Qt paint engine. The next step is to select the sensitive interface elements and relate them to application state.
+The supported target is Telegram Desktop 7.3.2 x64 with statically linked Qt 6.11.2. A reversible rendering probe draws test markers through the client's Qt paint engine. The next step is to select the sensitive interface elements and relate them to application state.
 
 The `rgf::integrations::telegram` library contains the adapter and rendering probe, with headers under `include/rgf/integrations/telegram/` and implementations under `src/integrations/telegram/`. The supported build profile is private to `src/integrations/telegram/internal/`. The DLL entry point and diagnostic file output remain under `dll/telegram/`; the entry point supplies the probe's report callback. Tests link the adapter library directly.
 
-The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.1), and [Qt 5.15 QWidget documentation](https://doc.qt.io/archives/qt-5.15/qwidget.html).
+The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.2), and [Qt 6 QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
 
 ### Milestones
 

@@ -1,12 +1,13 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>
 
 namespace rgf::qt::internal {
 
-// Foreign ABI verified against Qt 5.15.19 built with MSVC for Windows x64.
+// Foreign ABI verified against Qt 6.11.2 built with MSVC for Windows x64.
 // Layouts, function signatures, and virtual slots describe that host build.
 // Executable addresses and build validation belong to the adapter.
 
@@ -47,22 +48,28 @@ struct Color {
 };
 
 struct WidgetHashNode {
-  WidgetHashNode* next;
-  std::uint32_t hash;
   std::uintptr_t windowId;
   Widget* widget;
 };
 
+inline constexpr std::size_t kWidgetHashSpanBucketCount{128};
+inline constexpr std::uint8_t kWidgetHashUnusedEntry{0xff};
+
+// QHashPrivate::Span<Node> stores live bucket-to-entry indices separately.
+// Unused allocated entries contain free-list storage, not live widgets.
+struct WidgetHashSpan {
+  std::array<std::uint8_t, kWidgetHashSpanBucketCount> offsets;
+  WidgetHashNode* entries;
+  std::uint8_t allocated;
+  std::uint8_t nextFree;
+};
+
 struct WidgetHashData {
-  WidgetHashNode* fakeNext;
-  WidgetHashNode** buckets;
   std::int32_t referenceCount;
-  std::int32_t size;
-  std::int32_t nodeSize;
-  std::int16_t userNumBits;
-  std::int16_t numBits;
-  std::int32_t numBuckets;
-  std::uint32_t seed;
+  std::size_t size;
+  std::size_t numBuckets;
+  std::size_t seed;
+  WidgetHashSpan* spans;
 };
 
 struct WidgetMapper {
@@ -74,14 +81,11 @@ using DrawTextItemFn = void (*)(PaintEngine* engine, const PointF& position,
                                 const TextItem& item);
 using FillColorFn = void (*)(PaintEngine* engine, const RectF& rectangle,
                              const Color& color);
-using FindWidgetNodeFn = WidgetHashNode** (*)(const WidgetMapper* mapper,
-                                              const std::uintptr_t& windowId,
-                                              std::uint32_t hash);
 using UpdateWidgetFn = void (*)(Widget* widget);
 
-inline constexpr std::size_t kRasterVirtualCount{54};
+inline constexpr std::size_t kRasterVirtualCount{56};
 inline constexpr std::size_t kDrawTextItemSlot{16};
-inline constexpr std::size_t kFillColorSlot{37};
+inline constexpr std::size_t kFillColorSlot{39};
 
 inline constexpr double kFixedScale{64.0};
 inline constexpr std::size_t kTextItemMetricsSize{12};
@@ -98,11 +102,18 @@ inline constexpr std::size_t kColorRedOffset{6};
 inline constexpr std::size_t kColorGreenOffset{8};
 inline constexpr std::size_t kColorBlueOffset{10};
 
-inline constexpr std::size_t kWidgetHashSeedOffset{0x24};
-inline constexpr std::size_t kWidgetHashWindowIdOffset{0x10};
-inline constexpr std::size_t kWidgetHashWidgetOffset{0x18};
+inline constexpr std::size_t kWidgetHashDataSize{40};
+inline constexpr std::size_t kWidgetHashSizeOffset{8};
+inline constexpr std::size_t kWidgetHashBucketCountOffset{16};
+inline constexpr std::size_t kWidgetHashSeedOffset{24};
+inline constexpr std::size_t kWidgetHashSpansOffset{32};
+inline constexpr std::size_t kWidgetHashSpanSize{144};
+inline constexpr std::size_t kWidgetHashEntriesOffset{128};
+inline constexpr std::size_t kWidgetHashAllocatedOffset{136};
+inline constexpr std::size_t kWidgetHashNextFreeOffset{137};
+inline constexpr std::size_t kWidgetHashNodeSize{16};
+inline constexpr std::size_t kWidgetHashWidgetOffset{8};
 inline constexpr std::size_t kWidgetHostPointerSize{8};
-inline constexpr unsigned int kWidgetHashShift{31};
 
 static_assert(std::is_standard_layout_v<PaintEngine>);
 static_assert(std::is_standard_layout_v<TextItem>);
@@ -110,6 +121,7 @@ static_assert(std::is_standard_layout_v<PointF>);
 static_assert(std::is_standard_layout_v<RectF>);
 static_assert(std::is_standard_layout_v<Color>);
 static_assert(std::is_standard_layout_v<WidgetHashNode>);
+static_assert(std::is_standard_layout_v<WidgetHashSpan>);
 static_assert(std::is_standard_layout_v<WidgetHashData>);
 static_assert(std::is_standard_layout_v<WidgetMapper>);
 static_assert(offsetof(PaintEngine, vtable) == 0);
@@ -127,10 +139,31 @@ static_assert(offsetof(Color, red) == kColorRedOffset);
 static_assert(offsetof(Color, green) == kColorGreenOffset);
 static_assert(offsetof(Color, blue) == kColorBlueOffset);
 static_assert(offsetof(WidgetMapper, data) == 0);
+static_assert(offsetof(WidgetHashNode, windowId) == 0);
+static_assert(offsetof(WidgetHashSpan, offsets) == 0);
+static_assert(offsetof(WidgetHashData, referenceCount) == 0);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              sizeof(WidgetHashData) == kWidgetHashDataSize);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(WidgetHashData, size) == kWidgetHashSizeOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(WidgetHashData, numBuckets) ==
+                  kWidgetHashBucketCountOffset);
 static_assert(sizeof(void*) != kWidgetHostPointerSize ||
               offsetof(WidgetHashData, seed) == kWidgetHashSeedOffset);
 static_assert(sizeof(void*) != kWidgetHostPointerSize ||
-              offsetof(WidgetHashNode, windowId) == kWidgetHashWindowIdOffset);
+              offsetof(WidgetHashData, spans) == kWidgetHashSpansOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              sizeof(WidgetHashSpan) == kWidgetHashSpanSize);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(WidgetHashSpan, entries) == kWidgetHashEntriesOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(WidgetHashSpan, allocated) ==
+                  kWidgetHashAllocatedOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(WidgetHashSpan, nextFree) == kWidgetHashNextFreeOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              sizeof(WidgetHashNode) == kWidgetHashNodeSize);
 static_assert(sizeof(void*) != kWidgetHostPointerSize ||
               offsetof(WidgetHashNode, widget) == kWidgetHashWidgetOffset);
 
