@@ -17,24 +17,24 @@
 
 namespace rgf::integrations::telegram {
 
-class MessageTextHook {
+class MessageRenderHook {
  public:
-  using TextCallback =
-      std::move_only_function<void(const MessageInfo&, const qt::RasterCanvas&,
+  using MaskCallback =
+      std::move_only_function<bool(const MessageInfo&, const qt::RasterCanvas&,
                                    const qt::internal::RectF&) const noexcept>;
 
-  [[nodiscard]] static std::expected<std::unique_ptr<MessageTextHook>,
+  [[nodiscard]] static std::expected<std::unique_ptr<MessageRenderHook>,
                                      std::error_code>
   Create(hook::Vtable messageTable,
          qt::internal::GetPaintEngineFn getPaintEngine, void** rasterTable,
-         DWORD guiThreadId, TextCallback onText);
+         DWORD guiThreadId, MaskCallback mask);
 
-  MessageTextHook(const MessageTextHook&) = delete;
-  MessageTextHook& operator=(const MessageTextHook&) = delete;
-  MessageTextHook(MessageTextHook&&) = delete;
-  MessageTextHook& operator=(MessageTextHook&&) = delete;
+  MessageRenderHook(const MessageRenderHook&) = delete;
+  MessageRenderHook& operator=(const MessageRenderHook&) = delete;
+  MessageRenderHook(MessageRenderHook&&) = delete;
+  MessageRenderHook& operator=(MessageRenderHook&&) = delete;
 
-  ~MessageTextHook();
+  ~MessageRenderHook();
 
   [[nodiscard]] std::expected<void, std::error_code> Enable() noexcept;
   [[nodiscard]] std::expected<void, std::error_code> Disable() noexcept;
@@ -44,18 +44,21 @@ class MessageTextHook {
   [[nodiscard]] bool CanRelease() const noexcept;
   [[nodiscard]] std::uint64_t MessageCalls() const noexcept;
   [[nodiscard]] std::uint64_t TextCalls() const noexcept;
+  [[nodiscard]] std::uint64_t ImageCalls() const noexcept;
+  [[nodiscard]] std::uint64_t MaskedTextCalls() const noexcept;
+  [[nodiscard]] std::uint64_t MaskedImageCalls() const noexcept;
   [[nodiscard]] std::uint64_t MetadataFailures() const noexcept;
   [[nodiscard]] std::error_code MetadataError() const noexcept;
 
  private:
-  MessageTextHook(hook::VmtHook messageDrawHook,
-                  qt::internal::GetPaintEngineFn getPaintEngine,
-                  void** rasterTable, DWORD guiThreadId,
-                  TextCallback onText) noexcept;
+  MessageRenderHook(hook::VmtHook messageDrawHook,
+                    qt::internal::GetPaintEngineFn getPaintEngine,
+                    void** rasterTable, DWORD guiThreadId,
+                    MaskCallback mask) noexcept;
 
   [[nodiscard]] static std::expected<hook::VmtHook, std::error_code>
   PrepareMessageDrawHook(hook::Vtable messageTable) noexcept;
-  [[nodiscard]] static MessageTextHook& RequireCallbackTarget() noexcept;
+  [[nodiscard]] static MessageRenderHook& RequireCallbackTarget() noexcept;
 
   static void MessageDrawDetour(const internal::Message* message,
                                 qt::internal::Painter& painter,
@@ -65,17 +68,25 @@ class MessageTextHook {
                    const internal::PaintContext& context) noexcept;
   static void OnTextDrawn(const qt::RasterCanvas& canvas,
                           const qt::internal::RectF& bounds) noexcept;
+  [[nodiscard]] static bool OnImageDraw(
+      const qt::RasterCanvas& canvas,
+      const qt::internal::RectF& bounds) noexcept;
+  [[nodiscard]] bool TryMask(const qt::RasterCanvas& canvas,
+                             const qt::internal::RectF& bounds) const noexcept;
 
   hook::VmtHook messageDrawHook_;
   const internal::MessageDrawFn kOriginalMessageDraw_;
   const qt::internal::GetPaintEngineFn kGetPaintEngine_;
   void** const kRasterTable_;
   const DWORD kGuiThreadId_;
-  const TextCallback kOnText_;
+  const MaskCallback kMask_;
   std::atomic<bool> isAttached_{false};
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
   std::uint64_t textCalls_{};
+  std::uint64_t imageCalls_{};
+  std::uint64_t maskedTextCalls_{};
+  std::uint64_t maskedImageCalls_{};
   std::uint64_t metadataFailures_{};
   std::error_code metadataError_;
   const MessageInfo* messageInfo_{nullptr};

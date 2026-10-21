@@ -88,8 +88,9 @@ void AfterTextB(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
   canvas.FillRect(bounds, kColorB);
 }
 
-void MaskImage(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
+bool MaskImage(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
   canvas.FillRect(bounds, kColorB);
+  return true;
 }
 
 double PixmapRatio([[maybe_unused]] const qt::PlatformPixmap* pixmap) {

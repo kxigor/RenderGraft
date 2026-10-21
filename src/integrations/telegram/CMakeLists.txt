@@ -3,7 +3,7 @@ add_library(rgf_integrations_telegram STATIC
   history_image_hook.cpp
   message_info.cpp
   message_sender_filter.cpp
-  message_text_hook.cpp
+  message_render_hook.cpp
   raster_marker.cpp
   render_probe.cpp
   render_target.cpp

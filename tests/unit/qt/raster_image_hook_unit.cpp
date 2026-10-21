@@ -42,6 +42,9 @@ struct ProbeEngine : qt::PaintEngine {
   unsigned int originalCalls{};
   const qt::RectF* originalRectangle{nullptr};
   const qt::Image* originalImage{nullptr};
+  const qt::Pixmap* originalPixmap{nullptr};
+  const qt::PointF* originalPosition{nullptr};
+  const qt::PointF* originalTileOrigin{nullptr};
   const qt::RectF* originalSource{nullptr};
   std::int32_t originalFlags{};
   std::vector<qt::RectF> masks;
@@ -54,18 +57,22 @@ struct ProbeEngine : qt::PaintEngine {
   return *static_cast<ProbeEngine*>(engine);
 }
 
-void OriginalPixmapRect(qt::PaintEngine* engine,
-                        [[maybe_unused]] const qt::RectF& rectangle,
-                        [[maybe_unused]] const qt::Pixmap& pixmap,
-                        [[maybe_unused]] const qt::RectF& source) {
-  ++Probe(engine).originalCalls;
+void OriginalPixmapRect(qt::PaintEngine* engine, const qt::RectF& rectangle,
+                        const qt::Pixmap& pixmap, const qt::RectF& source) {
+  auto& probe{Probe(engine)};
+  ++probe.originalCalls;
+  probe.originalRectangle = &rectangle;
+  probe.originalPixmap = &pixmap;
+  probe.originalSource = &source;
 }
 
-void OriginalTiledPixmap(qt::PaintEngine* engine,
-                         [[maybe_unused]] const qt::RectF& rectangle,
-                         [[maybe_unused]] const qt::Pixmap& pixmap,
-                         [[maybe_unused]] const qt::PointF& source) {
-  ++Probe(engine).originalCalls;
+void OriginalTiledPixmap(qt::PaintEngine* engine, const qt::RectF& rectangle,
+                         const qt::Pixmap& pixmap, const qt::PointF& source) {
+  auto& probe{Probe(engine)};
+  ++probe.originalCalls;
+  probe.originalRectangle = &rectangle;
+  probe.originalPixmap = &pixmap;
+  probe.originalTileOrigin = &source;
 }
 
 void OriginalImageRect(qt::PaintEngine* engine, const qt::RectF& rectangle,
@@ -79,16 +86,20 @@ void OriginalImageRect(qt::PaintEngine* engine, const qt::RectF& rectangle,
   probe.originalFlags = flags;
 }
 
-void OriginalPixmapPoint(qt::PaintEngine* engine,
-                         [[maybe_unused]] const qt::PointF& position,
-                         [[maybe_unused]] const qt::Pixmap& pixmap) {
-  ++Probe(engine).originalCalls;
+void OriginalPixmapPoint(qt::PaintEngine* engine, const qt::PointF& position,
+                         const qt::Pixmap& pixmap) {
+  auto& probe{Probe(engine)};
+  ++probe.originalCalls;
+  probe.originalPosition = &position;
+  probe.originalPixmap = &pixmap;
 }
 
-void OriginalImagePoint(qt::PaintEngine* engine,
-                        [[maybe_unused]] const qt::PointF& position,
-                        [[maybe_unused]] const qt::Image& image) {
-  ++Probe(engine).originalCalls;
+void OriginalImagePoint(qt::PaintEngine* engine, const qt::PointF& position,
+                        const qt::Image& image) {
+  auto& probe{Probe(engine)};
+  ++probe.originalCalls;
+  probe.originalPosition = &position;
+  probe.originalImage = &image;
 }
 
 void FillColor(qt::PaintEngine* engine, const qt::RectF& bounds,
@@ -98,12 +109,27 @@ void FillColor(qt::PaintEngine* engine, const qt::RectF& bounds,
   probe.colors.push_back(color);
 }
 
-void MaskA(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
+bool MaskA(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
   canvas.FillRect(bounds, kColorA);
+  return true;
 }
 
-void MaskB(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
+bool MaskB(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
   canvas.FillRect(bounds, kColorB);
+  return true;
+}
+
+bool PassThrough([[maybe_unused]] const RasterCanvas& canvas,
+                 [[maybe_unused]] const qt::RectF& bounds) noexcept {
+  return false;
+}
+
+bool MaskPositiveX(const RasterCanvas& canvas,
+                   const qt::RectF& bounds) noexcept {
+  if (bounds.x < 0.0) {
+    return false;
+  }
+  return MaskA(canvas, bounds);
 }
 
 void UnusedVirtual() {}
@@ -172,6 +198,19 @@ void DrawPixmapPoint(ProbeEngine& engine, const qt::PointF& position,
       engine.vtable[qt::kDrawPixmapPointSlot])(&engine, position, pixmap);
 }
 
+void DrawAllRoutes(ProbeEngine& engine, const qt::RectF& bounds,
+                   const qt::Image& image, const qt::Pixmap& pixmap,
+                   const qt::PointF& position) {
+  DrawImageRect(engine, bounds, image, bounds);
+  rgf::core::PointerCast<qt::DrawPixmapRectFn>(
+      engine.vtable[qt::kDrawPixmapRectSlot])(&engine, bounds, pixmap, bounds);
+  rgf::core::PointerCast<qt::DrawTiledPixmapFn>(
+      engine.vtable[qt::kDrawTiledPixmapSlot])(&engine, bounds, pixmap,
+                                               position);
+  DrawImagePoint(engine, position, image);
+  DrawPixmapPoint(engine, position, pixmap);
+}
+
 void ExpectBounds(const qt::RectF& actual, const qt::RectF& expected) {
   EXPECT_DOUBLE_EQ(actual.x, expected.x);
   EXPECT_DOUBLE_EQ(actual.y, expected.y);
@@ -205,15 +244,7 @@ TEST_F(RasterImageHookUnit, ReplacesEveryImageRouteWithoutRenderingOriginals) {
   const RasterImageHook kHook{&engine_, table_.data() + 1, &MaskA};
   ASSERT_TRUE(kHook.IsActive());
 
-  DrawImageRect(engine_, kBounds_, image_, kSource_);
-  rgf::core::PointerCast<qt::DrawPixmapRectFn>(
-      engine_.vtable[qt::kDrawPixmapRectSlot])(&engine_, kBounds_, pixmap_,
-                                               kSource_);
-  rgf::core::PointerCast<qt::DrawTiledPixmapFn>(
-      engine_.vtable[qt::kDrawTiledPixmapSlot])(&engine_, kBounds_, pixmap_,
-                                                kPosition_);
-  DrawImagePoint(engine_, kPosition_, image_);
-  DrawPixmapPoint(engine_, kPosition_, pixmap_);
+  DrawAllRoutes(engine_, kBounds_, image_, pixmap_, kPosition_);
 
   EXPECT_EQ(engine_.originalCalls, 0);
   ASSERT_EQ(engine_.masks.size(), 5);
@@ -226,6 +257,86 @@ TEST_F(RasterImageHookUnit, ReplacesEveryImageRouteWithoutRenderingOriginals) {
   ExpectBounds(engine_.masks.at(kRectRouteCount), kPointBounds);
   ExpectBounds(engine_.masks.at(kRectRouteCount + 1), kPointBounds);
   EXPECT_EQ(platform_.ratioCalls, 1);
+}
+
+TEST_F(RasterImageHookUnit, DeclinedImageRectPreservesArgumentsAndFlags) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &PassThrough};
+
+  DrawImageRect(engine_, kBounds_, image_, kSource_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalRectangle, &kBounds_);
+  EXPECT_EQ(engine_.originalImage, &image_);
+  EXPECT_EQ(engine_.originalSource, &kSource_);
+  EXPECT_EQ(engine_.originalFlags, kImageFlags);
+  EXPECT_TRUE(engine_.masks.empty());
+}
+
+TEST_F(RasterImageHookUnit, DeclinedPixmapRectPreservesArguments) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &PassThrough};
+
+  rgf::core::PointerCast<qt::DrawPixmapRectFn>(
+      engine_.vtable[qt::kDrawPixmapRectSlot])(&engine_, kBounds_, pixmap_,
+                                               kSource_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalRectangle, &kBounds_);
+  EXPECT_EQ(engine_.originalPixmap, &pixmap_);
+  EXPECT_EQ(engine_.originalSource, &kSource_);
+  EXPECT_TRUE(engine_.masks.empty());
+}
+
+TEST_F(RasterImageHookUnit, DeclinedTiledPixmapPreservesArguments) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &PassThrough};
+
+  rgf::core::PointerCast<qt::DrawTiledPixmapFn>(
+      engine_.vtable[qt::kDrawTiledPixmapSlot])(&engine_, kBounds_, pixmap_,
+                                                kPosition_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalRectangle, &kBounds_);
+  EXPECT_EQ(engine_.originalPixmap, &pixmap_);
+  EXPECT_EQ(engine_.originalTileOrigin, &kPosition_);
+  EXPECT_TRUE(engine_.masks.empty());
+}
+
+TEST_F(RasterImageHookUnit, DeclinedImagePointPreservesArgumentsAndPixelRatio) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &PassThrough};
+
+  DrawImagePoint(engine_, kPosition_, image_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalPosition, &kPosition_);
+  EXPECT_EQ(engine_.originalImage, &image_);
+  EXPECT_DOUBLE_EQ(imageData_.devicePixelRatio, kPixelRatio);
+  EXPECT_TRUE(engine_.masks.empty());
+}
+
+TEST_F(RasterImageHookUnit,
+       DeclinedPixmapPointPreservesArgumentsAndPixelRatio) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &PassThrough};
+
+  DrawPixmapPoint(engine_, kPosition_, pixmap_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalPosition, &kPosition_);
+  EXPECT_EQ(engine_.originalPixmap, &pixmap_);
+  EXPECT_DOUBLE_EQ(platform_.ratio, kPixelRatio);
+  EXPECT_TRUE(engine_.masks.empty());
+}
+
+TEST_F(RasterImageHookUnit, AppliesTheCallbackDecisionToEachOperation) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &MaskPositiveX};
+  qt::RectF declined{kBounds_};
+  declined.x = -declined.x;
+
+  DrawImageRect(engine_, kBounds_, image_, kSource_);
+  DrawImageRect(engine_, declined, image_, kSource_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalRectangle, &declined);
+  ASSERT_EQ(engine_.masks.size(), 1);
+  ExpectBounds(engine_.masks.front(), kBounds_);
 }
 
 TEST_F(RasterImageHookUnit, PointImageUsesItsCurrentDimensionsAndRatio) {
@@ -271,7 +382,7 @@ TEST_F(RasterImageHookUnit, NullPointImagesAndPixmapsDoNotReadDataOrDrawMasks) {
   DrawPixmapPoint(engine_, kPosition_, kPixmap);
 
   EXPECT_TRUE(engine_.masks.empty());
-  EXPECT_EQ(engine_.originalCalls, 0);
+  EXPECT_EQ(engine_.originalCalls, 2);
 }
 
 TEST_F(RasterImageHookUnit, InvalidPointRatiosDoNotProduceMaskGeometry) {
@@ -286,7 +397,7 @@ TEST_F(RasterImageHookUnit, InvalidPointRatiosDoNotProduceMaskGeometry) {
   }
 
   EXPECT_TRUE(engine_.masks.empty());
-  EXPECT_EQ(engine_.originalCalls, 0);
+  EXPECT_EQ(engine_.originalCalls, kRatios.size() * 2);
 }
 
 TEST_F(RasterImageHookUnit, EmptyDestinationDoesNotCallTheMaskCallback) {
@@ -296,7 +407,38 @@ TEST_F(RasterImageHookUnit, EmptyDestinationDoesNotCallTheMaskCallback) {
   DrawImageRect(engine_, kEmpty, image_, kSource_);
 
   EXPECT_TRUE(engine_.masks.empty());
-  EXPECT_EQ(engine_.originalCalls, 0);
+  EXPECT_EQ(engine_.originalCalls, 1);
+}
+
+TEST_F(RasterImageHookUnit, NonFiniteDestinationPassesThroughWithoutAMask) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &MaskA};
+  constexpr double kNan{std::numeric_limits<double>::quiet_NaN()};
+  constexpr double kInfinity{std::numeric_limits<double>::infinity()};
+  const std::array kDestinations{
+      qt::RectF{.x = kNan, .y = 0.0, .width = 1.0, .height = 1.0},
+      qt::RectF{.x = 0.0, .y = kInfinity, .width = 1.0, .height = 1.0},
+      qt::RectF{.x = 0.0, .y = 0.0, .width = kInfinity, .height = 1.0},
+      qt::RectF{.x = 0.0, .y = 0.0, .width = 1.0, .height = kNan}};
+
+  for (const auto& destination : kDestinations) {
+    DrawImageRect(engine_, destination, image_, kSource_);
+  }
+
+  EXPECT_EQ(engine_.originalCalls, kDestinations.size());
+  EXPECT_TRUE(engine_.masks.empty());
+}
+
+TEST_F(RasterImageHookUnit, NonFinitePointPositionPreservesTheOriginalCall) {
+  const RasterImageHook kHook{&engine_, table_.data() + 1, &MaskA};
+  const qt::PointF kPosition{.x = std::numeric_limits<double>::quiet_NaN(),
+                             .y = kPosition_.y};
+
+  DrawImagePoint(engine_, kPosition, image_);
+
+  EXPECT_EQ(engine_.originalCalls, 1);
+  EXPECT_EQ(engine_.originalPosition, &kPosition);
+  EXPECT_EQ(engine_.originalImage, &image_);
+  EXPECT_TRUE(engine_.masks.empty());
 }
 
 TEST_F(RasterImageHookUnit, RestoresOriginalArgumentsAndFlagsAfterItsScope) {
@@ -409,4 +551,46 @@ TEST_F(RasterImageHookUnit, NestedEnginesKeepTheirOwnMasksAndRestoreTables) {
   EXPECT_EQ(engine_.colors[1].red, kColorA.red);
   EXPECT_EQ(other.colors[0].red, kColorB.red);
   EXPECT_EQ(other.originalCalls, 1);
+}
+
+TEST_F(RasterImageHookUnit, DeclinedNestedScopeCallsHostInsteadOfTheOuterMask) {
+  void** const kOriginalTable{engine_.vtable};
+  const RasterImageHook kOuter{&engine_, kOriginalTable, &MaskA};
+  void* const* const kOuterTable{engine_.vtable};
+  {
+    const RasterImageHook kInner{&engine_, kOriginalTable, &PassThrough};
+    ASSERT_TRUE(kInner.IsActive());
+
+    DrawAllRoutes(engine_, kBounds_, image_, pixmap_, kPosition_);
+
+    constexpr unsigned int kRouteCount{5};
+    EXPECT_EQ(engine_.originalCalls, kRouteCount);
+    EXPECT_TRUE(engine_.masks.empty());
+  }
+  EXPECT_EQ(engine_.vtable, kOuterTable);
+  DrawImageRect(engine_, kBounds_, image_, kSource_);
+  ASSERT_EQ(engine_.colors.size(), 1);
+  EXPECT_EQ(engine_.colors.front().red, kColorA.red);
+}
+
+TEST_F(RasterImageHookUnit, DeclinedInnerEngineKeepsTheOuterEngineMasked) {
+  void** const kOriginalTable{engine_.vtable};
+  ProbeEngine other{kOriginalTable};
+  const RasterImageHook kOuter{&engine_, kOriginalTable, &MaskA};
+  {
+    const RasterImageHook kInner{&other, kOriginalTable, &PassThrough};
+
+    DrawAllRoutes(other, kBounds_, image_, pixmap_, kPosition_);
+    DrawImageRect(engine_, kBounds_, image_, kSource_);
+
+    constexpr unsigned int kRouteCount{5};
+    EXPECT_EQ(other.originalCalls, kRouteCount);
+    EXPECT_TRUE(other.masks.empty());
+    EXPECT_EQ(engine_.originalCalls, 0);
+    EXPECT_EQ(engine_.masks.size(), 1);
+  }
+  EXPECT_EQ(other.vtable, kOriginalTable);
+  DrawImageRect(other, kBounds_, image_, kSource_);
+  constexpr unsigned int kCallsAfterRemoval{6};
+  EXPECT_EQ(other.originalCalls, kCallsAfterRemoval);
 }

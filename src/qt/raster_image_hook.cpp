@@ -58,9 +58,10 @@ RasterImageHook::RasterImageHook(internal::PaintEngine* engine,
                                  ImageCallback onImage) noexcept
     : kEngine_{FindEngine(engine, rasterVtable, onImage)},
       kOriginalTable_{kEngine_ != nullptr ? kEngine_->vtable : nullptr},
-      kFillColor_{kOriginalTable_ != nullptr
+      kCanonicalTable_{rasterVtable},
+      kFillColor_{kEngine_ != nullptr
                       ? core::PointerCast<internal::FillColorFn>(
-                            kOriginalTable_[internal::kFillColorSlot])
+                            kCanonicalTable_[internal::kFillColorSlot])
                       : nullptr},
       kOnImage_{onImage},
       kPrevious_{Current()},
@@ -129,46 +130,73 @@ const RasterImageHook& RasterImageHook::Owner(
   std::terminate();
 }
 
-void RasterImageHook::DrawPixmapRect(
-    internal::PaintEngine* engine, const internal::RectF& rectangle,
-    [[maybe_unused]] const internal::Pixmap& pixmap,
-    [[maybe_unused]] const internal::RectF& source) noexcept {
-  Owner(*engine).Draw(rectangle);
+void RasterImageHook::DrawPixmapRect(internal::PaintEngine* engine,
+                                     const internal::RectF& rectangle,
+                                     const internal::Pixmap& pixmap,
+                                     const internal::RectF& source) noexcept {
+  const auto& hook{Owner(*engine)};
+  if (!hook.Handle(rectangle)) {
+    core::PointerCast<internal::DrawPixmapRectFn>(
+        hook.kCanonicalTable_[internal::kDrawPixmapRectSlot])(engine, rectangle,
+                                                              pixmap, source);
+  }
 }
 
-void RasterImageHook::DrawTiledPixmap(
-    internal::PaintEngine* engine, const internal::RectF& rectangle,
-    [[maybe_unused]] const internal::Pixmap& pixmap,
-    [[maybe_unused]] const internal::PointF& source) noexcept {
-  Owner(*engine).Draw(rectangle);
+void RasterImageHook::DrawTiledPixmap(internal::PaintEngine* engine,
+                                      const internal::RectF& rectangle,
+                                      const internal::Pixmap& pixmap,
+                                      const internal::PointF& source) noexcept {
+  const auto& hook{Owner(*engine)};
+  if (!hook.Handle(rectangle)) {
+    core::PointerCast<internal::DrawTiledPixmapFn>(
+        hook.kCanonicalTable_[internal::kDrawTiledPixmapSlot])(
+        engine, rectangle, pixmap, source);
+  }
 }
 
-void RasterImageHook::DrawImageRect(
-    internal::PaintEngine* engine, const internal::RectF& rectangle,
-    [[maybe_unused]] const internal::Image& image,
-    [[maybe_unused]] const internal::RectF& source,
-    [[maybe_unused]] std::int32_t flags) noexcept {
-  Owner(*engine).Draw(rectangle);
+void RasterImageHook::DrawImageRect(internal::PaintEngine* engine,
+                                    const internal::RectF& rectangle,
+                                    const internal::Image& image,
+                                    const internal::RectF& source,
+                                    std::int32_t flags) noexcept {
+  const auto& hook{Owner(*engine)};
+  if (!hook.Handle(rectangle)) {
+    core::PointerCast<internal::DrawImageRectFn>(
+        hook.kCanonicalTable_[internal::kDrawImageRectSlot])(
+        engine, rectangle, image, source, flags);
+  }
 }
 
 void RasterImageHook::DrawPixmapPoint(internal::PaintEngine* engine,
                                       const internal::PointF& position,
                                       const internal::Pixmap& pixmap) noexcept {
-  Owner(*engine).Draw(PixmapBounds(position, pixmap));
+  const auto& hook{Owner(*engine)};
+  if (!hook.Handle(PixmapBounds(position, pixmap))) {
+    core::PointerCast<internal::DrawPixmapPointFn>(
+        hook.kCanonicalTable_[internal::kDrawPixmapPointSlot])(engine, position,
+                                                               pixmap);
+  }
 }
 
 void RasterImageHook::DrawImagePoint(internal::PaintEngine* engine,
                                      const internal::PointF& position,
                                      const internal::Image& image) noexcept {
-  Owner(*engine).Draw(ImageBounds(position, image));
+  const auto& hook{Owner(*engine)};
+  if (!hook.Handle(ImageBounds(position, image))) {
+    core::PointerCast<internal::DrawImagePointFn>(
+        hook.kCanonicalTable_[internal::kDrawImagePointSlot])(engine, position,
+                                                              image);
+  }
 }
 
-void RasterImageHook::Draw(const internal::RectF& bounds) const noexcept {
-  if (bounds.width <= 0.0 || bounds.height <= 0.0) {
-    return;
+bool RasterImageHook::Handle(const internal::RectF& bounds) const noexcept {
+  if (!std::isfinite(bounds.x) || !std::isfinite(bounds.y) ||
+      !std::isfinite(bounds.width) || !std::isfinite(bounds.height) ||
+      bounds.width <= 0.0 || bounds.height <= 0.0) {
+    return false;
   }
   const RasterCanvas kCanvas{*kEngine_, kFillColor_};
-  kOnImage_(kCanvas, bounds);
+  return kOnImage_(kCanvas, bounds);
 }
 
 }  // namespace rgf::qt

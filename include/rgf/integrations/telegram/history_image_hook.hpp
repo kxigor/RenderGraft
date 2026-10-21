@@ -53,8 +53,8 @@ class HistoryImageHook {
                           qt::internal::PaintEvent* event) noexcept;
   void PaintHistory(qt::internal::Widget* widget,
                     qt::internal::PaintEvent* event) noexcept;
-  static void OnImage(const qt::RasterCanvas& canvas,
-                      const qt::internal::RectF& bounds) noexcept;
+  [[nodiscard]] static bool OnImage(const qt::RasterCanvas& canvas,
+                                    const qt::internal::RectF& bounds) noexcept;
 
   hook::VmtHook paintHook_;
   const internal::HistoryPaintFn kOriginalPaint_;

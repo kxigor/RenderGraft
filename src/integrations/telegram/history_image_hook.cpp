@@ -128,11 +128,12 @@ void HistoryImageHook::PaintHistory(qt::internal::Widget* widget,
   --drawDepth_;
 }
 
-void HistoryImageHook::OnImage(const qt::RasterCanvas& canvas,
+bool HistoryImageHook::OnImage(const qt::RasterCanvas& canvas,
                                const qt::internal::RectF& bounds) noexcept {
   auto& target{RequireCallbackTarget()};
   ++target.imageCalls_;
   target.kOnImage_(canvas, bounds);
+  return true;
 }
 
 bool HistoryImageHook::IsDrawing() const noexcept { return drawDepth_ != 0; }

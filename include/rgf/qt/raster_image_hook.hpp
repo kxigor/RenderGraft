@@ -9,7 +9,7 @@ namespace rgf::qt {
 
 class RasterImageHook {
  public:
-  using ImageCallback = void (*)(const RasterCanvas& canvas,
+  using ImageCallback = bool (*)(const RasterCanvas& canvas,
                                  const internal::RectF& bounds) noexcept;
 
   RasterImageHook(internal::PaintEngine* engine, void** rasterVtable,
@@ -54,10 +54,11 @@ class RasterImageHook {
                              const internal::PointF& position,
                              const internal::Image& image) noexcept;
 
-  void Draw(const internal::RectF& bounds) const noexcept;
+  [[nodiscard]] bool Handle(const internal::RectF& bounds) const noexcept;
 
   internal::PaintEngine* const kEngine_;
   void** const kOriginalTable_;
+  void* const* const kCanonicalTable_;
   const internal::FillColorFn kFillColor_;
   const ImageCallback kOnImage_;
   const RasterImageHook* const kPrevious_;

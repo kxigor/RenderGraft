@@ -15,7 +15,8 @@
 #include <rgf/hook/vtable.hpp>
 #include <rgf/integrations/telegram/internal/message.hpp>
 #include <rgf/integrations/telegram/message_info.hpp>
-#include <rgf/integrations/telegram/message_text_hook.hpp>
+#include <rgf/integrations/telegram/message_render_hook.hpp>
+#include <rgf/integrations/telegram/message_sender_filter.hpp>
 #include <rgf/qt/internal/abi.hpp>
 #include <system_error>
 #include <thread>
@@ -45,6 +46,7 @@ struct Message {
   mutable qt::internal::Painter* receivedPainter{nullptr};
   mutable const PaintContext* receivedContext{nullptr};
   std::function<void()> duringDraw;
+  bool drawsText{true};
 };
 
 }  // namespace rgf::integrations::telegram::internal
@@ -54,7 +56,8 @@ namespace {
 namespace qt = rgf::qt::internal;
 namespace telegram = rgf::integrations::telegram::internal;
 using rgf::integrations::telegram::MessageInfo;
-using rgf::integrations::telegram::MessageTextHook;
+using rgf::integrations::telegram::MessageRenderHook;
+using rgf::integrations::telegram::MessageSenderFilter;
 using RasterTable = std::array<void*, qt::kRasterVirtualCount + 1>;
 
 constexpr SIZE_T kPageSize{4096};
@@ -64,6 +67,11 @@ constexpr std::uint64_t kDialogPeerId{0x2000000001234};
 constexpr std::uint64_t kFromPeerId{0x5678};
 constexpr qt::PointF kPosition{.x = 20.0, .y = 30.0};
 constexpr qt::TextItem kItem{.descent = 224, .ascent = 848, .width = 5616};
+constexpr qt::RectF kImageBounds{
+    .x = 10.0, .y = 20.0, .width = 80.0, .height = 60.0};
+constexpr qt::RectF kImageSource{
+    .x = 2.0, .y = 3.0, .width = 160.0, .height = 120.0};
+constexpr std::int32_t kImageFlags{0x1234};
 constexpr qt::Color kColor{.spec = 1,
                            .alpha = 0xffff,
                            .red = 0x8080,
@@ -71,7 +79,14 @@ constexpr qt::Color kColor{.spec = 1,
                            .blue = 0xffff,
                            .padding = 0};
 
-enum class Event : unsigned char { Message, Text, Callback, Fill, Finished };
+enum class Event : unsigned char {
+  Message,
+  Text,
+  Image,
+  Callback,
+  Fill,
+  Finished
+};
 
 [[nodiscard]] std::uint64_t Address(const void* object) {
   return rgf::core::PointerCast<std::uintptr_t>(object);
@@ -104,9 +119,20 @@ struct ProbeEngine : qt::PaintEngine {
         this, kPosition, kItem);
   }
 
+  void DrawImage(const qt::RectF& rectangle, const qt::Image& image,
+                 const qt::RectF& source, std::int32_t flags) {
+    rgf::core::PointerCast<qt::DrawImageRectFn>(vtable[qt::kDrawImageRectSlot])(
+        this, rectangle, image, source, flags);
+  }
+
   std::vector<Event> events;
   qt::RectF rectangle{};
   qt::Color color{};
+  unsigned int imageCalls{};
+  const qt::RectF* imageBounds{nullptr};
+  const qt::Image* image{nullptr};
+  const qt::RectF* imageSource{nullptr};
+  std::int32_t imageFlags{};
 };
 
 [[nodiscard]] ProbeEngine& Engine(qt::PaintEngine* engine) {
@@ -118,6 +144,18 @@ struct ProbeEngine : qt::PaintEngine {
 void OriginalText(qt::PaintEngine* engine, const qt::PointF& /*position*/,
                   const qt::TextItem& /*item*/) {
   Engine(engine).events.push_back(Event::Text);
+}
+
+void OriginalImage(qt::PaintEngine* engine, const qt::RectF& rectangle,
+                   const qt::Image& image, const qt::RectF& source,
+                   std::int32_t flags) {
+  auto& probe{Engine(engine)};
+  ++probe.imageCalls;
+  probe.imageBounds = &rectangle;
+  probe.image = &image;
+  probe.imageSource = &source;
+  probe.imageFlags = flags;
+  probe.events.push_back(Event::Image);
 }
 
 void FillColor(qt::PaintEngine* engine, const qt::RectF& rectangle,
@@ -136,6 +174,8 @@ void UnusedVirtual() {}
   table[qt::kDrawTextItemSlot + 1] =
       rgf::core::PointerCast<void*>(&OriginalText);
   table[qt::kFillColorSlot + 1] = rgf::core::PointerCast<void*>(&FillColor);
+  table[qt::kDrawImageRectSlot + 1] =
+      rgf::core::PointerCast<void*>(&OriginalImage);
   return table;
 }
 
@@ -154,11 +194,13 @@ void OriginalMessage(const telegram::Message* message, qt::Painter& painter,
   if (message->duringDraw) {
     message->duringDraw();
   }
-  engine.Draw();
+  if (message->drawsText) {
+    engine.Draw();
+  }
   engine.events.push_back(Event::Finished);
 }
 
-class MessageTextHookUnit : public ::testing::Test {
+class MessageRenderHookUnit : public ::testing::Test {
  protected:
   void SetUp() override {
     page = VirtualAlloc(nullptr, kPageSize, MEM_COMMIT | MEM_RESERVE,
@@ -172,7 +214,7 @@ class MessageTextHookUnit : public ::testing::Test {
 
     auto calls{std::make_unique<unsigned int>(0)};
     callbackCalls = calls.get();
-    auto createdHook{MessageTextHook::Create(
+    auto createdHook{MessageRenderHook::Create(
         rgf::hook::Vtable{table}, &GetPaintEngine, rasterTable.data() + 1,
         GetCurrentThreadId(),
         [this, calls = std::move(calls)](const MessageInfo& info,
@@ -180,9 +222,10 @@ class MessageTextHookUnit : public ::testing::Test {
                                          const qt::RectF& bounds) noexcept {
           ++*calls;
           observedMessages.push_back(info);
-          EXPECT_GE(hook->TextCalls(), *calls);
+          EXPECT_GE(hook->TextCalls() + hook->ImageCalls(), *calls);
           engine.events.push_back(Event::Callback);
           canvas.FillRect(bounds, kColor);
+          return true;
         })};
     ASSERT_TRUE(createdHook.has_value()) << createdHook.error().message();
     hook = std::move(*createdHook);
@@ -207,13 +250,80 @@ class MessageTextHookUnit : public ::testing::Test {
 
   [[nodiscard]] void* Slot() const { return table[telegram::kMessageDrawSlot]; }
 
-  [[nodiscard]] std::expected<std::unique_ptr<MessageTextHook>, std::error_code>
+  [[nodiscard]] std::expected<std::unique_ptr<MessageRenderHook>,
+                              std::error_code>
   CreateAnotherHook() {
-    return MessageTextHook::Create(
+    return MessageRenderHook::Create(
         rgf::hook::Vtable{table}, &GetPaintEngine, rasterTable.data() + 1,
         GetCurrentThreadId(),
         [](const MessageInfo&, const rgf::qt::RasterCanvas&,
-           const qt::RectF&) noexcept {});
+           const qt::RectF&) noexcept { return false; });
+  }
+
+  [[nodiscard]] std::expected<void, std::error_code> UseSenderFilter() {
+    hook.reset();
+    const auto kFilter{MessageSenderFilter::ForUser(kFromPeerId)};
+    if (!kFilter) {
+      return std::unexpected{kFilter.error()};
+    }
+    auto calls{std::make_unique<unsigned int>(0)};
+    callbackCalls = calls.get();
+    auto createdHook{MessageRenderHook::Create(
+        rgf::hook::Vtable{table}, &GetPaintEngine, rasterTable.data() + 1,
+        GetCurrentThreadId(),
+        [this, filter = *kFilter, calls = std::move(calls)](
+            const MessageInfo& info, const rgf::qt::RasterCanvas& canvas,
+            const qt::RectF& bounds) noexcept {
+          ++*calls;
+          observedMessages.push_back(info);
+          if (!filter.Matches(info)) {
+            return false;
+          }
+          engine.events.push_back(Event::Callback);
+          canvas.FillRect(bounds, kColor);
+          return true;
+        })};
+    if (!createdHook) {
+      return std::unexpected{createdHook.error()};
+    }
+    hook = std::move(*createdHook);
+    return {};
+  }
+
+  void DrawImage(ProbeEngine& imageEngine) const {
+    imageEngine.DrawImage(kImageBounds, image, kImageSource, kImageFlags);
+  }
+
+  void PrepareImageMessage() {
+    message.drawsText = false;
+    message.duringDraw = [this] { DrawImage(engine); };
+  }
+
+  void PrepareImageMessageWithOffscreenRendering(ProbeEngine& offscreen) {
+    message.drawsText = false;
+    message.duringDraw = [this, &offscreen] {
+      DrawImage(offscreen);
+      DrawImage(engine);
+    };
+  }
+
+  void DrawWithNestedImages(telegram::Message& nested) {
+    message.duringDraw = [this, &nested] {
+      DrawImage(engine);
+      Draw(nested);
+      DrawImage(engine);
+    };
+    nested.duringDraw = [this] { DrawImage(engine); };
+    Draw();
+    message.duringDraw = {};
+    nested.duringDraw = {};
+  }
+
+  void ExpectOriginalImageArguments(const ProbeEngine& imageEngine) const {
+    EXPECT_EQ(imageEngine.imageBounds, &kImageBounds);
+    EXPECT_EQ(imageEngine.image, &image);
+    EXPECT_EQ(imageEngine.imageSource, &kImageSource);
+    EXPECT_EQ(imageEngine.imageFlags, kImageFlags);
   }
 
   [[nodiscard]] std::vector<std::int64_t> CallbackMessageIds() const {
@@ -309,6 +419,7 @@ class MessageTextHookUnit : public ::testing::Test {
   void** table{nullptr};
   RasterTable rasterTable{MakeRasterTable()};
   ProbeEngine engine{rasterTable.data() + 1};
+  qt::Image image{};
   qt::Painter painter{.engine = &engine};
   ProbePeer dialogPeer{.id = kDialogPeerId};
   ProbePeer fromPeer{.id = kFromPeerId};
@@ -322,7 +433,7 @@ class MessageTextHookUnit : public ::testing::Test {
   telegram::PaintContext context{};
   std::vector<MessageInfo> observedMessages;
   unsigned int* callbackCalls{nullptr};
-  std::unique_ptr<MessageTextHook> hook;
+  std::unique_ptr<MessageRenderHook> hook;
 };
 
 using VirtualProtectExFn = decltype(&VirtualProtectEx);
@@ -373,10 +484,10 @@ BOOL WINAPI FailNextProtection(HANDLE process, LPVOID address, SIZE_T size,
   return nullptr;
 }
 
-class MessageTextHookProtectionFailureUnit : public MessageTextHookUnit {
+class MessageRenderHookProtectionFailureUnit : public MessageRenderHookUnit {
  protected:
   void SetUp() override {
-    MessageTextHookUnit::SetUp();
+    MessageRenderHookUnit::SetUp();
     if (HasFatalFailure()) {
       return;
     }
@@ -388,7 +499,7 @@ class MessageTextHookProtectionFailureUnit : public MessageTextHookUnit {
     Failure().protection = 0;
     protectionHook_.reset();
     Failure().original = nullptr;
-    MessageTextHookUnit::TearDown();
+    MessageRenderHookUnit::TearDown();
   }
 
   static void FailNextChange(DWORD protection) {
@@ -414,7 +525,7 @@ class MessageTextHookProtectionFailureUnit : public MessageTextHookUnit {
 
 }  // namespace
 
-TEST_F(MessageTextHookUnit, CreationDoesNotBindOrInterceptTheOriginal) {
+TEST_F(MessageRenderHookUnit, CreationDoesNotBindOrInterceptTheOriginal) {
   EXPECT_TRUE(hook->CanRelease());
   EXPECT_TRUE(hook->IsDetached());
   EXPECT_FALSE(hook->IsDrawing());
@@ -428,7 +539,7 @@ TEST_F(MessageTextHookUnit, CreationDoesNotBindOrInterceptTheOriginal) {
   EXPECT_EQ(*callbackCalls, 0);
 }
 
-TEST_F(MessageTextHookUnit,
+TEST_F(MessageRenderHookUnit,
        CreationIsRejectedUntilTheRegisteredOwnerIsDestroyed) {
   ASSERT_TRUE(hook->Enable().has_value());
   const void* const kDetour{Slot()};
@@ -460,7 +571,7 @@ TEST_F(MessageTextHookUnit,
   EXPECT_EQ(hook->TextCalls(), 1);
 }
 
-TEST_F(MessageTextHookUnit,
+TEST_F(MessageRenderHookUnit,
        DestroyingAnUnregisteredOwnerPreservesAnotherOwnersRouting) {
   auto unused{CreateAnotherHook()};
   ASSERT_TRUE(unused.has_value()) << unused.error().message();
@@ -475,7 +586,7 @@ TEST_F(MessageTextHookUnit,
   EXPECT_EQ(*callbackCalls, 1);
 }
 
-TEST_F(MessageTextHookUnit,
+TEST_F(MessageRenderHookUnit,
        RoutesAStatefulCallbackAfterTextAndRestoresTheScopedQtHook) {
   ASSERT_TRUE(hook->Enable().has_value());
   EXPECT_FALSE(hook->CanRelease());
@@ -511,7 +622,7 @@ TEST_F(MessageTextHookUnit,
   EXPECT_EQ(*callbackCalls, 1);
 }
 
-TEST_F(MessageTextHookUnit, CountsTextRunsSeparatelyFromMessageDraws) {
+TEST_F(MessageRenderHookUnit, CountsTextRunsSeparatelyFromMessageDraws) {
   message.duringDraw = [this] { engine.Draw(); };
   ASSERT_TRUE(hook->Enable().has_value());
 
@@ -524,7 +635,7 @@ TEST_F(MessageTextHookUnit, CountsTextRunsSeparatelyFromMessageDraws) {
   EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
 }
 
-TEST_F(MessageTextHookUnit, CallbackReceivesTheOwningMessageModelIdentity) {
+TEST_F(MessageRenderHookUnit, CallbackReceivesTheOwningMessageModelIdentity) {
   ASSERT_TRUE(hook->Enable().has_value());
 
   Draw();
@@ -538,7 +649,7 @@ TEST_F(MessageTextHookUnit, CallbackReceivesTheOwningMessageModelIdentity) {
   EXPECT_EQ(hook->MetadataFailures(), 0);
 }
 
-TEST_F(MessageTextHookUnit, NestedDifferentMessageRestoresTheOuterIdentity) {
+TEST_F(MessageRenderHookUnit, NestedDifferentMessageRestoresTheOuterIdentity) {
   ProbeItem nestedItem{.fields = item.fields};
   nestedItem.fields.messageId = kNestedMessageId;
   telegram::Message nested{.item = Address(&nestedItem)};
@@ -555,7 +666,8 @@ TEST_F(MessageTextHookUnit, NestedDifferentMessageRestoresTheOuterIdentity) {
   EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
 }
 
-TEST_F(MessageTextHookUnit, InvalidNestedMessageCannotInheritTheOuterIdentity) {
+TEST_F(MessageRenderHookUnit,
+       InvalidNestedMessageCannotInheritTheOuterIdentity) {
   telegram::Message nested{};
   ASSERT_TRUE(hook->Enable().has_value());
 
@@ -570,7 +682,7 @@ TEST_F(MessageTextHookUnit, InvalidNestedMessageCannotInheritTheOuterIdentity) {
   EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
 }
 
-TEST_F(MessageTextHookUnit,
+TEST_F(MessageRenderHookUnit,
        MissingMetadataForwardsOriginalWithoutInventingMessageIds) {
   message.item = 0;
   ASSERT_TRUE(hook->Enable().has_value());
@@ -585,7 +697,7 @@ TEST_F(MessageTextHookUnit,
             std::make_error_code(std::errc::bad_address));
 }
 
-TEST_F(MessageTextHookUnit,
+TEST_F(MessageRenderHookUnit,
        CallbackRetainsASnapshotWhenTheOriginalChangesItsModel) {
   ASSERT_TRUE(hook->Enable().has_value());
 
@@ -600,7 +712,121 @@ TEST_F(MessageTextHookUnit,
   EXPECT_FALSE(observedMessages.back().IsOutgoing());
 }
 
-TEST_F(MessageTextHookUnit, CountsMessageWithoutTextForAnotherRasterTable) {
+TEST_F(MessageRenderHookUnit, MasksImagesOnlyForTheSelectedSender) {
+  ASSERT_TRUE(UseSenderFilter().has_value());
+  PrepareImageMessage();
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+  fromPeer.id = kFromPeerId + 1;
+  Draw();
+
+  EXPECT_EQ(message.originalCalls, 2);
+  EXPECT_EQ(hook->MessageCalls(), 2);
+  EXPECT_EQ(hook->TextCalls(), 0);
+  EXPECT_EQ(hook->ImageCalls(), 2);
+  EXPECT_EQ(hook->MaskedImageCalls(), 1);
+  EXPECT_EQ(engine.imageCalls, 1);
+  EXPECT_EQ(*callbackCalls, 2);
+  EXPECT_EQ(engine.events,
+            (std::vector{Event::Message, Event::Callback, Event::Fill,
+                         Event::Finished, Event::Message, Event::Image,
+                         Event::Finished}));
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+}
+
+TEST_F(MessageRenderHookUnit,
+       UnselectedImagesForwardTheOriginalReferencesAndConversionFlags) {
+  ASSERT_TRUE(UseSenderFilter().has_value());
+  fromPeer.id = kFromPeerId + 1;
+  PrepareImageMessage();
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+
+  EXPECT_EQ(engine.imageCalls, 1);
+  ExpectOriginalImageArguments(engine);
+  EXPECT_EQ(hook->ImageCalls(), 1);
+  EXPECT_EQ(hook->MaskedImageCalls(), 0);
+  EXPECT_EQ(hook->MaskedTextCalls(), 0);
+  EXPECT_EQ(engine.events,
+            (std::vector{Event::Message, Event::Image, Event::Finished}));
+}
+
+TEST_F(MessageRenderHookUnit,
+       NestedUnselectedImagesAndTextRestoreTheSelectedOuterSender) {
+  ASSERT_TRUE(UseSenderFilter().has_value());
+  ProbePeer nestedFrom{.id = kFromPeerId + 1};
+  ProbeItem nestedItem{.fields = item.fields};
+  nestedItem.fields.messageId = kNestedMessageId;
+  nestedItem.fields.from = Address(&nestedFrom);
+  telegram::Message nested{.item = Address(&nestedItem)};
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  DrawWithNestedImages(nested);
+
+  EXPECT_EQ(CallbackMessageIds(),
+            (std::vector{kMessageId, kNestedMessageId, kNestedMessageId,
+                         kMessageId, kMessageId}));
+  EXPECT_EQ(message.originalCalls, 1);
+  EXPECT_EQ(nested.originalCalls, 1);
+  EXPECT_EQ(hook->ImageCalls(), 3);
+  EXPECT_EQ(hook->MaskedImageCalls(), 2);
+  EXPECT_EQ(hook->TextCalls(), 2);
+  EXPECT_EQ(hook->MaskedTextCalls(), 1);
+  EXPECT_EQ(engine.imageCalls, 1);
+  ExpectOriginalImageArguments(engine);
+  EXPECT_EQ(
+      engine.events,
+      (std::vector{Event::Message, Event::Callback, Event::Fill, Event::Message,
+                   Event::Image, Event::Text, Event::Finished, Event::Callback,
+                   Event::Fill, Event::Text, Event::Callback, Event::Fill,
+                   Event::Finished}));
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+}
+
+TEST_F(MessageRenderHookUnit,
+       InvalidNestedImageMetadataCannotBorrowTheSelectedOuterSender) {
+  ASSERT_TRUE(UseSenderFilter().has_value());
+  telegram::Message nested{.drawsText = false};
+  message.drawsText = false;
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  DrawWithNestedImages(nested);
+
+  EXPECT_EQ(CallbackMessageIds(), (std::vector{kMessageId, kMessageId}));
+  EXPECT_EQ(nested.originalCalls, 1);
+  EXPECT_EQ(hook->MetadataFailures(), 1);
+  EXPECT_EQ(hook->MetadataError(),
+            std::make_error_code(std::errc::bad_address));
+  EXPECT_EQ(hook->ImageCalls(), 3);
+  EXPECT_EQ(hook->MaskedImageCalls(), 2);
+  EXPECT_EQ(engine.imageCalls, 1);
+  ExpectOriginalImageArguments(engine);
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+}
+
+TEST_F(MessageRenderHookUnit,
+       OffscreenImageCacheRenderingRemainsUntouchedDuringTheOriginalMessage) {
+  ASSERT_TRUE(UseSenderFilter().has_value());
+  ProbeEngine offscreen{rasterTable.data() + 1};
+  PrepareImageMessageWithOffscreenRendering(offscreen);
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Draw();
+  DrawImage(offscreen);
+
+  EXPECT_EQ(offscreen.imageCalls, 2);
+  EXPECT_EQ(offscreen.events, (std::vector{Event::Image, Event::Image}));
+  ExpectOriginalImageArguments(offscreen);
+  EXPECT_EQ(offscreen.vtable, rasterTable.data() + 1);
+  EXPECT_EQ(hook->ImageCalls(), 1);
+  EXPECT_EQ(hook->MaskedImageCalls(), 1);
+  EXPECT_EQ(engine.imageCalls, 0);
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+}
+
+TEST_F(MessageRenderHookUnit, CountsMessageWithoutTextForAnotherRasterTable) {
   auto otherRasterTable{MakeRasterTable()};
   engine.vtable = otherRasterTable.data() + 1;
   ASSERT_TRUE(hook->Enable().has_value());
@@ -617,7 +843,8 @@ TEST_F(MessageTextHookUnit, CountsMessageWithoutTextForAnotherRasterTable) {
   engine.vtable = rasterTable.data() + 1;
 }
 
-TEST_F(MessageTextHookUnit, DisableDuringDrawDefersWithoutChangingTheBinding) {
+TEST_F(MessageRenderHookUnit,
+       DisableDuringDrawDefersWithoutChangingTheBinding) {
   ASSERT_TRUE(hook->Enable().has_value());
   const void* const kDetour{Slot()};
   std::error_code nestedError;
@@ -635,7 +862,7 @@ TEST_F(MessageTextHookUnit, DisableDuringDrawDefersWithoutChangingTheBinding) {
   EXPECT_TRUE(hook->CanRelease());
 }
 
-TEST_F(MessageTextHookUnit, NestedDrawKeepsTheOuterScopeProtected) {
+TEST_F(MessageRenderHookUnit, NestedDrawKeepsTheOuterScopeProtected) {
   ASSERT_TRUE(hook->Enable().has_value());
   const std::error_code kBusy{ERROR_BUSY, std::system_category()};
 
@@ -652,7 +879,7 @@ TEST_F(MessageTextHookUnit, NestedDrawKeepsTheOuterScopeProtected) {
   EXPECT_TRUE(hook->CanRelease());
 }
 
-TEST_F(MessageTextHookUnit, RepeatedEnableKeepsTheActiveRouting) {
+TEST_F(MessageRenderHookUnit, RepeatedEnableKeepsTheActiveRouting) {
   ASSERT_TRUE(hook->Enable().has_value());
   const void* const kDetour{Slot()};
 
@@ -669,7 +896,8 @@ TEST_F(MessageTextHookUnit, RepeatedEnableKeepsTheActiveRouting) {
   EXPECT_EQ(*callbackCalls, 1);
 }
 
-TEST_F(MessageTextHookUnit, DisableSucceedsWhenNeverAttachedOrAlreadyDetached) {
+TEST_F(MessageRenderHookUnit,
+       DisableSucceedsWhenNeverAttachedOrAlreadyDetached) {
   ASSERT_TRUE(hook->Disable().has_value());
   EXPECT_TRUE(hook->IsDetached());
   EXPECT_TRUE(hook->CanRelease());
@@ -688,7 +916,8 @@ TEST_F(MessageTextHookUnit, DisableSucceedsWhenNeverAttachedOrAlreadyDetached) {
   EXPECT_EQ(*callbackCalls, 0);
 }
 
-TEST_F(MessageTextHookUnit, ForeignThreadCannotDisableAnAlreadyDetachedOwner) {
+TEST_F(MessageRenderHookUnit,
+       ForeignThreadCannotDisableAnAlreadyDetachedOwner) {
   ASSERT_TRUE(hook->Enable().has_value());
   ASSERT_TRUE(hook->Disable().has_value());
   const std::error_code kWrongThread{ERROR_INVALID_THREAD_ID,
@@ -703,13 +932,14 @@ TEST_F(MessageTextHookUnit, ForeignThreadCannotDisableAnAlreadyDetachedOwner) {
   EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalMessage));
 }
 
-TEST_F(MessageTextHookUnit, ForeignThreadForwardsOriginalAndRequiresRetention) {
+TEST_F(MessageRenderHookUnit,
+       ForeignThreadForwardsOriginalAndRequiresRetention) {
   // The owner deliberately remains retained in the child. Process exit releases
   // its memory after the joined worker has verified the sticky safety latch.
   EXPECT_EXIT(ExerciseForeignThread(), ::testing::ExitedWithCode(0), "");
 }
 
-TEST_F(MessageTextHookProtectionFailureUnit,
+TEST_F(MessageRenderHookProtectionFailureUnit,
        EnableFailureBeforePatchingAllowsReleaseOrRetry) {
   FailNextChange(PAGE_READWRITE);
 
@@ -736,7 +966,7 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   EXPECT_EQ(*callbackCalls, 1);
 }
 
-TEST_F(MessageTextHookProtectionFailureUnit,
+TEST_F(MessageRenderHookProtectionFailureUnit,
        FailedEnableReservesItsReceiverUntilTheOwnerIsDestroyed) {
   auto waiting{CreateAnotherHook()};
   ASSERT_TRUE(waiting.has_value()) << waiting.error().message();
@@ -765,7 +995,7 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   EXPECT_EQ(hook->TextCalls(), 1);
 }
 
-TEST_F(MessageTextHookProtectionFailureUnit,
+TEST_F(MessageRenderHookProtectionFailureUnit,
        EnableIgnoresProtectionRestoreFailureAfterPatching) {
   FailNextChange(PAGE_READONLY);
 
@@ -783,7 +1013,7 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   EXPECT_TRUE(hook->CanRelease());
 }
 
-TEST_F(MessageTextHookProtectionFailureUnit,
+TEST_F(MessageRenderHookProtectionFailureUnit,
        DisableFailureBeforePatchingKeepsRoutingUntilRemovalSucceeds) {
   ASSERT_TRUE(hook->Enable().has_value());
   const void* const kDetour{Slot()};
@@ -804,7 +1034,7 @@ TEST_F(MessageTextHookProtectionFailureUnit,
   EXPECT_TRUE(hook->CanRelease());
 }
 
-TEST_F(MessageTextHookProtectionFailureUnit,
+TEST_F(MessageRenderHookProtectionFailureUnit,
        DisableIgnoresProtectionRestoreFailureAndRestoresOriginalRouting) {
   ASSERT_TRUE(hook->Enable().has_value());
   FailNextChange(PAGE_READONLY);

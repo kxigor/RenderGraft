@@ -15,7 +15,7 @@ set_target_properties(rgf_telegram PROPERTIES
 
 target_compile_features(rgf_telegram PRIVATE cxx_std_23)
 
-set(RGF_TELEGRAM_MASKED_USER_ID "0" CACHE STRING "Telegram user ID whose message text is masked (0 means unconfigured)")
+set(RGF_TELEGRAM_MASKED_USER_ID "0" CACHE STRING "Telegram user ID whose message content is masked (0 means unconfigured)")
 string(LENGTH "${RGF_TELEGRAM_MASKED_USER_ID}" maskedUserIdLength)
 if(NOT RGF_TELEGRAM_MASKED_USER_ID MATCHES "^(0|[1-9][0-9]*)$"
     OR maskedUserIdLength GREATER 15
