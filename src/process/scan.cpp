@@ -1,17 +1,17 @@
 #include <windows.h>
 
-#include <afw/process/error.hpp>
-#include <afw/process/memory.hpp>
-#include <afw/process/scan.hpp>
 #include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <rgf/process/error.hpp>
+#include <rgf/process/memory.hpp>
+#include <rgf/process/scan.hpp>
 #include <string_view>
 #include <system_error>
 
-namespace afw::process {
+namespace rgf::process {
 
 namespace {
 
@@ -153,4 +153,4 @@ std::expected<std::uintptr_t, std::error_code> FindPattern(
   return std::unexpected{make_error_code(Error::PatternNotFound)};
 }
 
-}  // namespace afw::process
+}  // namespace rgf::process

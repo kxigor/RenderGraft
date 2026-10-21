@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <afw/win/com_ptr.hpp>
+#include <rgf/win/com_ptr.hpp>
 #include <utility>
 
 namespace {
@@ -18,7 +18,7 @@ class FakeObject {
 }  // namespace
 
 TEST(ComPtrUnit, DefaultConstructedHoldsNothing) {
-  const afw::win::ComPtr<FakeObject> kPtr{};
+  const rgf::win::ComPtr<FakeObject> kPtr{};
 
   EXPECT_EQ(kPtr.Get(), nullptr);
   EXPECT_FALSE(static_cast<bool>(kPtr));
@@ -29,7 +29,7 @@ TEST(ComPtrUnit, DestructorReleasesExactlyOnce) {
   FakeObject object{releases};
 
   {
-    const afw::win::ComPtr<FakeObject> kPtr{&object};
+    const rgf::win::ComPtr<FakeObject> kPtr{&object};
     ASSERT_TRUE(static_cast<bool>(kPtr));
   }
 
@@ -39,7 +39,7 @@ TEST(ComPtrUnit, DestructorReleasesExactlyOnce) {
 TEST(ComPtrUnit, ArrowReachesTheObject) {
   int releases{0};
   FakeObject object{releases};
-  const afw::win::ComPtr<FakeObject> kPtr{&object};
+  const rgf::win::ComPtr<FakeObject> kPtr{&object};
 
   kPtr->Release();
 
@@ -51,7 +51,7 @@ TEST(ComPtrUnit, ReleaseHandsOwnershipToTheCaller) {
   FakeObject object{releases};
 
   {
-    afw::win::ComPtr<FakeObject> ptr{&object};
+    rgf::win::ComPtr<FakeObject> ptr{&object};
     EXPECT_EQ(ptr.Release(), &object);
     EXPECT_EQ(ptr.Get(), nullptr);
   }
@@ -65,7 +65,7 @@ TEST(ComPtrUnit, ResetReleasesWhatItReplaces) {
   FakeObject first{firstReleases};
   FakeObject second{secondReleases};
 
-  afw::win::ComPtr<FakeObject> ptr{&first};
+  rgf::win::ComPtr<FakeObject> ptr{&first};
   ptr.Reset(&second);
 
   EXPECT_EQ(firstReleases, 1);
@@ -77,7 +77,7 @@ TEST(ComPtrUnit, ResettingToTheSamePointerIsANoOp) {
   int releases{0};
   FakeObject object{releases};
 
-  afw::win::ComPtr<FakeObject> ptr{&object};
+  rgf::win::ComPtr<FakeObject> ptr{&object};
   ptr.Reset(&object);
 
   EXPECT_EQ(releases, 0);
@@ -89,8 +89,8 @@ TEST(ComPtrUnit, MoveConstructionLeavesTheSourceEmpty) {
   FakeObject object{releases};
 
   {
-    afw::win::ComPtr<FakeObject> source{&object};
-    const afw::win::ComPtr<FakeObject> kMoved{std::move(source)};
+    rgf::win::ComPtr<FakeObject> source{&object};
+    const rgf::win::ComPtr<FakeObject> kMoved{std::move(source)};
 
     EXPECT_EQ(kMoved.Get(), &object);
     EXPECT_EQ(source.Get(), nullptr);
@@ -106,8 +106,8 @@ TEST(ComPtrUnit, MoveAssignmentReleasesTheTarget) {
   FakeObject sourceObject{sourceReleases};
   FakeObject targetObject{targetReleases};
 
-  afw::win::ComPtr<FakeObject> source{&sourceObject};
-  afw::win::ComPtr<FakeObject> target{&targetObject};
+  rgf::win::ComPtr<FakeObject> source{&sourceObject};
+  rgf::win::ComPtr<FakeObject> target{&targetObject};
 
   target = std::move(source);
 
@@ -123,7 +123,7 @@ TEST(ComPtrUnit, PutDropsWhatIsHeldAndYieldsTheAddress) {
   FakeObject first{firstReleases};
   FakeObject second{secondReleases};
 
-  afw::win::ComPtr<FakeObject> ptr{&first};
+  rgf::win::ComPtr<FakeObject> ptr{&first};
   *ptr.Put() = &second;
 
   EXPECT_EQ(firstReleases, 1);

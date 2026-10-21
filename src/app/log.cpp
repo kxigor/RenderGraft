@@ -1,17 +1,17 @@
 #include <windows.h>
 
-#include <afw/app/log.hpp>
-#include <afw/app/module.hpp>
-#include <afw/win/scoped_handle.hpp>
 #include <array>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <cwchar>
+#include <rgf/app/log.hpp>
+#include <rgf/app/module.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <system_error>
 
-namespace afw::app {
+namespace rgf::app {
 
 namespace {
 
@@ -73,9 +73,9 @@ void Logf(const char* format, ...) {
 }
 
 void LogFailure(const char* step, const std::error_code& error) {
-  Logf("[aimbot] %s failed: %s\n", step, error.message().c_str());
+  Logf("[rgf] %s failed: %s\n", step, error.message().c_str());
 }
 
-void LogInstalled(const char* what) { Logf("[aimbot] hooked %s\n", what); }
+void LogInstalled(const char* what) { Logf("[rgf] hooked %s\n", what); }
 
-}  // namespace afw::app
+}  // namespace rgf::app

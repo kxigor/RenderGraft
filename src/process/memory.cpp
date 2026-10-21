@@ -1,16 +1,16 @@
 #include <windows.h>
 
-#include <afw/process/error.hpp>
-#include <afw/process/memory.hpp>
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <rgf/process/error.hpp>
+#include <rgf/process/memory.hpp>
 #include <system_error>
 
-namespace afw::process {
+namespace rgf::process {
 
 namespace {
 
@@ -145,4 +145,4 @@ bool IsReadable(LPCVOID address, SIZE_T size) noexcept {
   return true;
 }
 
-}  // namespace afw::process
+}  // namespace rgf::process

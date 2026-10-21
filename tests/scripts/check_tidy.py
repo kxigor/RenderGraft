@@ -17,6 +17,10 @@ def run_tidy(file_path, tidy_cmd, build_dir, config_file):
     
     cmd.extend(['--extra-arg=-Wno-unknown-warning-option'])
 
+    if file_path.endswith(('.h', '.hpp')):
+        include_dir = os.path.join(os.path.dirname(os.path.abspath(config_file)), 'include')
+        cmd.append(f'--extra-arg=-I{include_dir}')
+
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:

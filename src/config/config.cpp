@@ -1,10 +1,10 @@
-#include <afw/config/config.hpp>
+#include <rgf/config/config.hpp>
 
-namespace afw::config {
+namespace rgf::config {
 
 Settings& Current() noexcept {
   static Settings settings{};
   return settings;
 }
 
-}  // namespace afw::config
+}  // namespace rgf::config

@@ -1,9 +1,9 @@
 #include <windows.h>
 
-#include <afw/app/detour_guard.hpp>
 #include <atomic>
+#include <rgf/app/detour_guard.hpp>
 
-namespace afw::app {
+namespace rgf::app {
 
 namespace {
 
@@ -35,4 +35,4 @@ void WaitForDetours() noexcept {
       /*dwMilliseconds = */ kSettleMilliseconds);
 }
 
-}  // namespace afw::app
+}  // namespace rgf::app

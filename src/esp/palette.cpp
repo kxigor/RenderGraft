@@ -1,13 +1,13 @@
-#include <afw/config/config.hpp>
-#include <afw/esp/internal/palette.hpp>
-#include <afw/games/fc3/internal/kind.hpp>
 #include <cstdint>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/internal/palette.hpp>
+#include <rgf/integrations/fc3/internal/kind.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
-using games::fc3::Kind;
+using integrations::fc3::Kind;
 
 constexpr std::uint32_t kPropColour{0xC000FF40};
 constexpr std::uint32_t kDeadColour{0x80606060};
@@ -21,7 +21,7 @@ constexpr std::uint32_t kVehicleColour{0xFF40C0FF};
 
 }  // namespace
 
-std::uint32_t ColourOf(const games::fc3::EntityInfo& entity,
+std::uint32_t ColourOf(const integrations::fc3::EntityInfo& entity,
                        Kind kind) noexcept {
   if (entity.pawn && entity.pawn->dead) {
     return kDeadColour;
@@ -73,4 +73,4 @@ bool Shown(Kind kind) noexcept {
   }
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

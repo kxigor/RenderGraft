@@ -1,0 +1,128 @@
+# RenderGraft
+
+RenderGraft is evolving from [AimbotFramework](https://github.com/kxigor/AimbotFramework) into a C++23 framework for dynamic instrumentation of graphical applications on Windows. The goal is to reuse DLL injection, function interception, access to application state, and changes to graphics and behavior across different 2D and 3D applications. AI is intended to assist with application analysis and adapter development.
+
+## What already works
+
+The original example is single-player Far Cry 3 using Direct3D 11. `injector_fc3.exe` loads `aimbot_fc3.dll`; the module hooks `IDXGISwapChain::Present` and game entity updates, reads the camera and world state, projects 3D objects onto the screen, and draws a Dear ImGui overlay. Implemented features include ESP, target selection and aim assist, reversible patches to game instructions, a menu, diagnostics, and DLL unloading that restores hooks and patches.
+
+Main components carried over from AimbotFramework:
+
+| Modules | Purpose |
+| --- | --- |
+| `rgf::win`, `rgf::remote` | RAII for Win32/COM, process lookup, and DLL injection |
+| `rgf::process`, `rgf::hook` | Memory reads, module access, signature scanning, VMT/WndProc hooks, and reversible patches |
+| `rgf::render`, `rgf::app` | D3D11 overlay, per-frame callback, application session, hook management, and logging |
+| `rgf::module` | Common DLL bootstrap: running a callback on a worker thread and unloading after the session ends |
+| `rgf::math` | 3D geometry, matrices, and projection to screen coordinates |
+| `rgf::integrations::fc3`, `rgf::esp`, `rgf::aimbot` | Far Cry 3 adapter, entity visualization, and game logic |
+| `rgf::menu`, `rgf::config` | Interface and settings for the current example |
+
+The framework uses the `rgf::*` namespace and CMake aliases, with public headers under `include/rgf/`. Application adapters live together under `include/rgf/integrations/<application>/` and `src/integrations/<application>/`, with namespaces and CMake aliases under `rgf::integrations`. Their tests live under `tests/unit/integrations/<application>/`. `rgf::app` accepts an implementation through `rgf::app::Game`, but installs the D3D11 hook itself; ESP and aim assist still depend on Far Cry 3. Doom 3 and Quake II RTX have skeleton implementations: OpenGL/Vulkan backends and inline/trampoline hooks are not implemented yet.
+
+`DllMain` delegates to `rgf::module::DllEntry(instance, reason, &OnAttach)`. The `void OnAttach()` callback runs the entire session; before returning, it must finish its work and remove its hooks. `app::Run()` releases session resources and returns, then the callback's local objects are destroyed and the bootstrap unloads the DLL. If an unexpected exception escapes the callback, the worker thread exits and leaves the DLL loaded.
+
+`VmtHook::Create()` returns a hook by value. A hook can be default-constructed empty or move-constructed, transferring ownership even when enabled; move assignment is disabled. An empty hook has no original function, rejects setup and enabling, and can be safely disabled or destroyed.
+
+VMT hook operations return errors that prevent changing the table slot. After a slot change, failure to restore page protection is ignored and does not make `Enable()` or `Disable()` fail.
+
+## Development direction
+
+Extract a common instrumentation core, graphics backends, and adapters for specific applications. Each additional application should connect through an adapter and the required graphics mechanism; a 2D scenario does not require a game world model. Far Cry 3 remains the working example while the common layer is extracted.
+
+TODO: Design a coherent logging architecture with singleton access and logger factories for stream or file output, including ownership, lifetime, and error handling.
+
+## Telegram Desktop
+
+A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
+
+The supported target is Telegram Desktop 7.3.2 x64 with statically linked Qt 6.11.2. The current reversible probe masks text and raster images drawn inside messages from a selected Telegram user. Avatar interception is available at the history level; associating those operations with their owner is a separate step.
+
+The `rgf::integrations::telegram` library contains the adapter and rendering probe, with headers under `include/rgf/integrations/telegram/` and implementations under `src/integrations/telegram/`. The supported build profile is private to `src/integrations/telegram/internal/`. The DLL entry point and diagnostic file output remain under `dll/telegram/`; the entry point supplies the probe's report callback. Tests link the adapter library directly.
+
+The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.2), and [Qt 6 QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
+
+### Milestones
+
+| Milestone | Result | Status |
+| --- | --- | --- |
+| T1 | Basic DLL injection into Telegram, runtime diagnostics, and automatic unload while the client keeps running | done |
+| T2 | Identify the selected build's Qt rendering path and validate candidate hook points against the running application | done |
+| T3 | Intercept the selected rendering path, draw a test marker, and restore normal rendering when the hook is removed | done |
+| T4 | Identify image and avatar rendering within the message history and validate the interception scope | done |
+| T4a | Associate text drawing with its owning message: message ID, dialog peer, model sender peer, and outgoing flag | done |
+| T4b | Mask message text selectively by the sender's Telegram user ID | done |
+| T4c | Extend sender filtering to raster images drawn inside messages | done |
+| T5 | Add avatar filtering, including initials placeholders; add an on/off control and verify screen capture and restoration | next |
+| T6 | Separate the shared instrumentation and Qt graphics mechanisms from Telegram-specific state, signatures, and masking rules | planned |
+| T7 | Document a reproducible AI-assisted adapter workflow: inputs, tools, proposed hook points, and checks that accept or reject the findings | planned |
+| T8 | Evaluate masking correctness, runtime overhead, and repeated attach/unload; document the tested Telegram build and limitations | planned |
+
+Work through these milestones in order and update their status after verification. The selected interface elements, hook mechanism, and evaluation criteria will be refined during implementation. T7 will describe the resulting adapter workflow.
+
+### Rendering probe
+
+Choose the sender's numeric Telegram user ID when configuring the build:
+
+```sh
+cmake --preset dev-debug -DRGF_TELEGRAM_MASKED_USER_ID=<user-id>
+cmake --build --preset dev-debug
+```
+
+The selected ID stays in the ignored build cache. The default value is `0` (unconfigured); in that case, the DLL reports the missing selection and unloads without installing hooks. The ID is a positive user ID, not a username, phone number, or Bot API chat ID. The selection is fixed for this build; the injector still takes no arguments.
+
+Open a chat with messages from that user in the supported 64-bit Telegram Desktop build. For checking both matching and other senders, use a group chat. Run:
+
+```sh
+./build/dev-debug/injector/injector_telegram.exe
+```
+
+The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, purple rectangles cover Qt text runs and replace image/pixmap operations inside `Message::draw` for the selected sender. `MessageSenderFilter` compares the full model sender peer ID. Text is drawn normally before the mask is applied; matched images are replaced without drawing their original pixels. Other senders' drawing keeps its original arguments and behavior. Hook installation and removal run on the GUI thread.
+
+The image hook handles rectangle and point overloads, tiled pixmaps, and device-pixel scaling. It temporarily replaces only the current message painter engine's private table. Other engines sharing the canonical table retain their original operations, including cache construction that uses a different engine. The scope includes decorative raster images drawn by the message, not just media thumbnails. A message snapshot rendered through the same `Message::draw` entry point is also in scope.
+
+Avatars, including generated initials, remain visible. They are painted separately after the message pass. The earlier `HistoryImageHook` can intercept those history-wide image operations but does not identify their owner, so it is not enabled by this launcher. Avatar filtering needs an owner-aware paint boundary that covers both photos and initials without changing message layout.
+
+`MessageRenderHook` supplies its mask callback with an immutable `MessageInfo` snapshot containing the message ID, dialog peer ID, model sender peer ID, and outgoing flag. The callback returns `true` when it draws a mask; `false` preserves the original image operation. Text callbacks run after the original text draw. The snapshot owns copied values and preserves the current message across nested draws. If metadata cannot be read, the original drawing continues and the callback is skipped; the failure is counted. Peer IDs use Telegram's native typed representation. The dialog/message pair is scoped to an account, and temporary client message IDs can change after sending.
+
+This context identifies the message whose draw method is running. The filtering decision covers all its intercepted text runs, including names, timestamps, and reply previews; it does not classify them separately. A forward is selected by its current model sender, not its original author. Anonymous and channel posts do not reveal the human behind them. Usernames are not resolved automatically at runtime; the numeric user ID remains the selector when a name changes.
+
+The probe requests a repaint when starting and stopping, restores the hook, and unloads automatically while Telegram keeps running. Runtime diagnostics, message/text/image draw calls, applied masks, and metadata read failures are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Message content and peer IDs are not logged. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
+
+## Building the current example
+
+Requirements are MSYS2, a compiler with C++23 support, CMake 3.25+, Ninja, and GoogleTest for tests. Dear ImGui is included as a git submodule:
+
+```sh
+git submodule update --init --recursive
+```
+
+Development and tests in MSYS2 UCRT64:
+
+```sh
+cmake --preset dev-debug
+cmake --build --preset dev-debug
+ctest --preset dev-debug
+```
+
+Running in 32-bit Far Cry 3 requires an x86 build in MSYS2 MINGW32 with CMake and Ninja available:
+
+```sh
+cmake --preset dev-debug-x86
+cmake --build --preset dev-debug-x86
+ctest --preset dev-debug-x86
+```
+
+After starting `farcry3_d3d11.exe`, run from the repository root:
+
+```sh
+./build/dev-debug-x86/injector/injector_fc3.exe
+```
+
+The launcher runs without arguments. Its entry point specifies the process name and DLL name, while the common code performs the injection. The current launcher is in `injector/fc3/main.cpp` and uses `farcry3_d3d11.exe` + `aimbot_fc3.dll`. It looks for the DLL next to the launcher. Each additional adapter gets its own short entry point using the same common implementation.
+
+The launcher, DLL, and target process must use matching architectures. A successful DLL load and completed callback initialization are separate states: the callback starts asynchronously.
+
+For the Far Cry 3 example, `INSERT` toggles the menu; `Unload` ends the session and unloads the DLL.
+
+License: [Educational Source-Available License](LICENSE), for educational and non-commercial use.

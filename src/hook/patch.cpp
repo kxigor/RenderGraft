@@ -1,18 +1,18 @@
 #include <windows.h>
 
-#include <afw/hook/patch.hpp>
-#include <afw/win/error.hpp>
 #include <algorithm>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <expected>
+#include <rgf/hook/patch.hpp>
+#include <rgf/win/error.hpp>
 #include <span>
 #include <system_error>
 #include <utility>
 
-namespace afw::hook {
+namespace rgf::hook {
 
 namespace {
 
@@ -95,4 +95,4 @@ void CodePatch::Restore() noexcept {
   size_ = 0;
 }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook

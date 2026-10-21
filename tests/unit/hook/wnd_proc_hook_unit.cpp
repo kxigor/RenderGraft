@@ -1,16 +1,16 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/hook/error.hpp>
-#include <afw/hook/wnd_proc_hook.hpp>
 #include <bit>
 #include <expected>
 #include <memory>
+#include <rgf/hook/error.hpp>
+#include <rgf/hook/wnd_proc_hook.hpp>
 #include <system_error>
 
 namespace {
 
-constexpr PCWSTR kClassName{L"AfwWndProcHookProbe"};
+constexpr PCWSTR kClassName{L"RgfWndProcHookProbe"};
 
 LRESULT __stdcall Detour(HWND window, UINT message, WPARAM wParam,
                          LPARAM lParam) {
@@ -62,20 +62,20 @@ class ProbeWindow {
 }  // namespace
 
 TEST(WndProcHookUnit, RefusesAHandleThatNamesNoWindow) {
-  const std::expected<afw::hook::WndProcHook, std::error_code> kHook{
-      afw::hook::WndProcHook::Create(nullptr)};
+  const std::expected<rgf::hook::WndProcHook, std::error_code> kHook{
+      rgf::hook::WndProcHook::Create(nullptr)};
 
   ASSERT_FALSE(kHook.has_value());
   EXPECT_EQ(kHook.error(),
-            afw::hook::make_error_code(afw::hook::Error::WindowNotFound));
+            rgf::hook::make_error_code(rgf::hook::Error::WindowNotFound));
 }
 
 TEST(WndProcHookUnit, CapturesTheOriginalBeforeAnyDetourIsNamed) {
   const ProbeWindow kWindow{};
   ASSERT_NE(kWindow.Get(), nullptr);
 
-  const std::expected<afw::hook::WndProcHook, std::error_code> kHook{
-      afw::hook::WndProcHook::Create(kWindow.Get())};
+  const std::expected<rgf::hook::WndProcHook, std::error_code> kHook{
+      rgf::hook::WndProcHook::Create(kWindow.Get())};
 
   ASSERT_TRUE(kHook.has_value());
   EXPECT_EQ(kHook->Original<WNDPROC>(), CurrentProc(kWindow.Get()));
@@ -85,8 +85,8 @@ TEST(WndProcHookUnit, CreateDynamicCapturesTheSameOriginalOnTheHeap) {
   const ProbeWindow kWindow{};
   ASSERT_NE(kWindow.Get(), nullptr);
 
-  const std::expected<std::unique_ptr<afw::hook::WndProcHook>, std::error_code>
-      kHook{afw::hook::WndProcHook::CreateDynamic(kWindow.Get())};
+  const std::expected<std::unique_ptr<rgf::hook::WndProcHook>, std::error_code>
+      kHook{rgf::hook::WndProcHook::CreateDynamic(kWindow.Get())};
 
   ASSERT_TRUE(kHook.has_value());
   ASSERT_NE(kHook->get(), nullptr);
@@ -94,27 +94,27 @@ TEST(WndProcHookUnit, CreateDynamicCapturesTheSameOriginalOnTheHeap) {
 }
 
 TEST(WndProcHookUnit, CreateDynamicRefusesANonWindowTheSameWay) {
-  const std::expected<std::unique_ptr<afw::hook::WndProcHook>, std::error_code>
-      kHook{afw::hook::WndProcHook::CreateDynamic(nullptr)};
+  const std::expected<std::unique_ptr<rgf::hook::WndProcHook>, std::error_code>
+      kHook{rgf::hook::WndProcHook::CreateDynamic(nullptr)};
 
   ASSERT_FALSE(kHook.has_value());
   EXPECT_EQ(kHook.error(),
-            afw::hook::make_error_code(afw::hook::Error::WindowNotFound));
+            rgf::hook::make_error_code(rgf::hook::Error::WindowNotFound));
 }
 
 TEST(WndProcHookUnit, RefusesToEnableWithoutADetour) {
   const ProbeWindow kWindow{};
   ASSERT_NE(kWindow.Get(), nullptr);
 
-  std::expected<afw::hook::WndProcHook, std::error_code> hook{
-      afw::hook::WndProcHook::Create(kWindow.Get())};
+  std::expected<rgf::hook::WndProcHook, std::error_code> hook{
+      rgf::hook::WndProcHook::Create(kWindow.Get())};
   ASSERT_TRUE(hook.has_value());
 
   const std::expected<void, std::error_code> kEnabled{hook->Enable()};
 
   ASSERT_FALSE(kEnabled.has_value());
   EXPECT_EQ(kEnabled.error(),
-            afw::hook::make_error_code(afw::hook::Error::DetourNotSet));
+            rgf::hook::make_error_code(rgf::hook::Error::DetourNotSet));
 }
 
 TEST(WndProcHookUnit, SwapsTheProcedureAndPutsItBack) {
@@ -123,8 +123,8 @@ TEST(WndProcHookUnit, SwapsTheProcedureAndPutsItBack) {
   const WNDPROC kBefore{CurrentProc(kWindow.Get())};
 
   {
-    std::expected<afw::hook::WndProcHook, std::error_code> hook{
-        afw::hook::WndProcHook::Create(kWindow.Get())};
+    std::expected<rgf::hook::WndProcHook, std::error_code> hook{
+        rgf::hook::WndProcHook::Create(kWindow.Get())};
     ASSERT_TRUE(hook.has_value());
     ASSERT_TRUE(hook->SetDetour(&Detour).has_value());
     ASSERT_TRUE(hook->Enable().has_value());
@@ -139,8 +139,8 @@ TEST(WndProcHookUnit, RejectsASecondDetourWhileEnabled) {
   const ProbeWindow kWindow{};
   ASSERT_NE(kWindow.Get(), nullptr);
 
-  std::expected<afw::hook::WndProcHook, std::error_code> hook{
-      afw::hook::WndProcHook::Create(kWindow.Get())};
+  std::expected<rgf::hook::WndProcHook, std::error_code> hook{
+      rgf::hook::WndProcHook::Create(kWindow.Get())};
   ASSERT_TRUE(hook.has_value());
   ASSERT_TRUE(hook->SetDetour(&Detour).has_value());
   ASSERT_TRUE(hook->Enable().has_value());
@@ -149,5 +149,5 @@ TEST(WndProcHookUnit, RejectsASecondDetourWhileEnabled) {
 
   ASSERT_FALSE(kSecond.has_value());
   EXPECT_EQ(kSecond.error(),
-            afw::hook::make_error_code(afw::hook::Error::HookAlreadyApplied));
+            rgf::hook::make_error_code(rgf::hook::Error::HookAlreadyApplied));
 }
