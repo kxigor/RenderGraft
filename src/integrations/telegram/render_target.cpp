@@ -110,8 +110,18 @@ namespace {
   if (!kWidgetId) {
     return kWidgetId;
   }
-  return CheckFunction(base + internal::kUpdateWidgetRva,
-                       internal::kUpdateWidgetCode);
+  const auto kUpdate{CheckFunction(base + internal::kUpdateWidgetRva,
+                                   internal::kUpdateWidgetCode)};
+  if (!kUpdate) {
+    return kUpdate;
+  }
+  const auto kDisplayFrom{CheckFunction(base + internal::kElementDisplayFromRva,
+                                        internal::kElementDisplayFromCode)};
+  if (!kDisplayFrom) {
+    return kDisplayFrom;
+  }
+  return CheckFunction(base + internal::kItemFullIdRva,
+                       internal::kItemFullIdCode);
 }
 
 [[nodiscard]] std::expected<void, std::error_code> CheckImageTables(

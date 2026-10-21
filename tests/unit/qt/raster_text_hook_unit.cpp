@@ -7,6 +7,7 @@
 #include <rgf/core/cast.hpp>
 #include <rgf/qt/internal/abi.hpp>
 #include <rgf/qt/raster_canvas.hpp>
+#include <rgf/qt/raster_image_hook.hpp>
 #include <rgf/qt/raster_text_hook.hpp>
 #include <span>
 #include <vector>
@@ -23,10 +24,13 @@ namespace {
 
 namespace qt = rgf::qt::internal;
 using rgf::qt::RasterCanvas;
+using rgf::qt::RasterImageHook;
 using rgf::qt::RasterTextHook;
 using Table = std::array<void*, qt::kRasterVirtualCount + 1>;
 
 enum class Event : std::uint8_t { Text, Fill };
+
+constexpr double kImagePixelRatio{2.0};
 
 constexpr qt::Color kColorA{.spec = 1,
                             .alpha = 0x4321,
@@ -82,6 +86,58 @@ void AfterTextA(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
 
 void AfterTextB(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
   canvas.FillRect(bounds, kColorB);
+}
+
+void MaskImage(const RasterCanvas& canvas, const qt::RectF& bounds) noexcept {
+  canvas.FillRect(bounds, kColorB);
+}
+
+double PixmapRatio([[maybe_unused]] const qt::PlatformPixmap* pixmap) {
+  return kImagePixelRatio;
+}
+
+void DrawImages(ProbeEngine& engine) {
+  constexpr std::int32_t kPixelWidth{80};
+  constexpr std::int32_t kPixelHeight{40};
+  constexpr std::int32_t kPixelDepth{32};
+  const qt::RectF kBounds{.x = 2.0, .y = 1.0, .width = 2.0, .height = 1.0};
+  const qt::PointF kPosition{.x = 2.0, .y = 1.0};
+  qt::ImageData imageData{.referenceCount = 1,
+                          .width = kPixelWidth,
+                          .height = kPixelHeight,
+                          .depth = kPixelDepth,
+                          .byteCount = 0,
+                          .devicePixelRatio = kImagePixelRatio};
+  const qt::Image kImage{.device = {}, .data = &imageData};
+  std::array<void*, qt::kPixmapDevicePixelRatioSlot + 1> pixmapTable{};
+  pixmapTable[qt::kPixmapDevicePixelRatioSlot] =
+      rgf::core::PointerCast<void*>(&PixmapRatio);
+  qt::PlatformPixmap pixmapData{.vtable = pixmapTable.data(),
+                                .referenceCount = 1,
+                                .width = kPixelWidth,
+                                .height = kPixelHeight,
+                                .depth = kPixelDepth};
+  const qt::Pixmap kPixmap{.device = {}, .data = &pixmapData};
+
+  rgf::core::PointerCast<qt::DrawPixmapRectFn>(
+      engine.vtable[qt::kDrawPixmapRectSlot])(&engine, kBounds, kPixmap,
+                                              kBounds);
+  rgf::core::PointerCast<qt::DrawTiledPixmapFn>(
+      engine.vtable[qt::kDrawTiledPixmapSlot])(&engine, kBounds, kPixmap,
+                                               kPosition);
+  rgf::core::PointerCast<qt::DrawImageRectFn>(
+      engine.vtable[qt::kDrawImageRectSlot])(&engine, kBounds, kImage, kBounds,
+                                             0);
+  rgf::core::PointerCast<qt::DrawPixmapPointFn>(
+      engine.vtable[qt::kDrawPixmapPointSlot])(&engine, kPosition, kPixmap);
+  rgf::core::PointerCast<qt::DrawImagePointFn>(
+      engine.vtable[qt::kDrawImagePointSlot])(&engine, kPosition, kImage);
+}
+
+[[nodiscard]] Table CopyTable(void** table) {
+  Table result{};
+  std::ranges::copy(std::span{table - 1, result.size()}, result.begin());
+  return result;
 }
 
 void UnusedVirtual() {}
@@ -296,4 +352,88 @@ TEST_F(RasterTextHookUnit,
   EXPECT_EQ(engine_.colors[0].red, kColorA.red);
   EXPECT_EQ(engine_.colors[1].red, kColorA.red);
   EXPECT_EQ(other.colors[0].red, kColorB.red);
+}
+
+TEST_F(RasterTextHookUnit, PreservesImageDetoursAndRttiInsideTheTextScope) {
+  const Table kOriginal{table_};
+  const RasterImageHook kImages{&engine_, table_.data() + 1, &MaskImage};
+  void** const kImageVtable{engine_.vtable};
+  const Table kImageTable{CopyTable(kImageVtable)};
+  const RasterTextHook kText{painter_, &GetPaintEngine, table_.data() + 1,
+                             &AfterTextA};
+
+  ASSERT_NE(engine_.vtable, kImageVtable);
+  Table actual{CopyTable(engine_.vtable)};
+  EXPECT_NE(actual[qt::kDrawTextItemSlot + 1],
+            kImageTable[qt::kDrawTextItemSlot + 1]);
+  actual[qt::kDrawTextItemSlot + 1] = kImageTable[qt::kDrawTextItemSlot + 1];
+  EXPECT_EQ(actual, kImageTable);
+  EXPECT_EQ(table_, kOriginal);
+}
+
+TEST_F(RasterTextHookUnit, KeepsAllImageOperationsMaskedInsideATextScope) {
+  const RasterImageHook kImages{&engine_, table_.data() + 1, &MaskImage};
+  const RasterTextHook kText{painter_, &GetPaintEngine, table_.data() + 1,
+                             &AfterTextA};
+
+  engine_.Draw(kPosition_, kItem_);
+  DrawImages(engine_);
+
+  EXPECT_EQ(engine_.originalPosition, &kPosition_);
+  EXPECT_EQ(engine_.originalItem, &kItem_);
+  EXPECT_EQ(engine_.events,
+            (std::vector{Event::Text, Event::Fill, Event::Fill, Event::Fill,
+                         Event::Fill, Event::Fill, Event::Fill}));
+  constexpr std::size_t kColorCount{6};
+  ASSERT_EQ(engine_.colors.size(), kColorCount);
+  EXPECT_EQ(engine_.colors.front().red, kColorA.red);
+  EXPECT_TRUE(std::ranges::all_of(
+      std::span{engine_.colors}.subspan(1),
+      [](const qt::Color& color) { return color.red == kColorB.red; }));
+}
+
+TEST_F(RasterTextHookUnit, RestoresTheImageScopeAndRecognizesItsExactEngine) {
+  void** const kOriginalVtable{engine_.vtable};
+  EXPECT_FALSE(RasterImageHook::IsInstalledOn(engine_));
+  {
+    const RasterImageHook kImages{&engine_, kOriginalVtable, &MaskImage};
+    void** const kImageVtable{engine_.vtable};
+    const ProbeEngine kOther{kImageVtable};
+    EXPECT_TRUE(RasterImageHook::IsInstalledOn(engine_));
+    EXPECT_FALSE(RasterImageHook::IsInstalledOn(kOther));
+    {
+      const RasterTextHook kText{painter_, &GetPaintEngine, kOriginalVtable,
+                                 &AfterTextA};
+      EXPECT_FALSE(RasterImageHook::IsInstalledOn(engine_));
+      engine_.Draw(kPosition_, kItem_);
+    }
+    EXPECT_EQ(engine_.vtable, kImageVtable);
+    EXPECT_TRUE(RasterImageHook::IsInstalledOn(engine_));
+    DrawImages(engine_);
+  }
+  EXPECT_EQ(engine_.vtable, kOriginalVtable);
+  EXPECT_FALSE(RasterImageHook::IsInstalledOn(engine_));
+}
+
+TEST_F(RasterTextHookUnit, NestedTextScopesWithinImagesKeepTheOuterCallback) {
+  const RasterImageHook kImages{&engine_, table_.data() + 1, &MaskImage};
+  void* const* const kImageVtable{engine_.vtable};
+  {
+    const RasterTextHook kOuter{painter_, &GetPaintEngine, table_.data() + 1,
+                                &AfterTextA};
+    void* const* const kTextVtable{engine_.vtable};
+    {
+      const RasterTextHook kInner{painter_, &GetPaintEngine, table_.data() + 1,
+                                  &AfterTextB};
+      EXPECT_EQ(engine_.vtable, kTextVtable);
+      engine_.Draw(kPosition_, kItem_);
+    }
+    EXPECT_EQ(engine_.vtable, kTextVtable);
+    DrawImages(engine_);
+  }
+  EXPECT_EQ(engine_.vtable, kImageVtable);
+  EXPECT_EQ(engine_.events.front(), Event::Text);
+  constexpr std::size_t kColorCount{6};
+  ASSERT_EQ(engine_.colors.size(), kColorCount);
+  EXPECT_EQ(engine_.colors.front().red, kColorA.red);
 }

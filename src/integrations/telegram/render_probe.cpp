@@ -9,7 +9,7 @@
 #include <expected>
 #include <memory>
 #include <new>
-#include <rgf/integrations/telegram/history_image_hook.hpp>
+#include <rgf/integrations/telegram/message_text_hook.hpp>
 #include <rgf/integrations/telegram/raster_marker.hpp>
 #include <rgf/integrations/telegram/render_probe.hpp>
 #include <rgf/integrations/telegram/render_target.hpp>
@@ -30,12 +30,12 @@ class RenderProbe {
  public:
   RenderProbe(RenderTarget target, HWND window, DWORD guiThread,
               ReportCallback report,
-              std::unique_ptr<HistoryImageHook> imageHook) noexcept
+              std::unique_ptr<MessageTextHook> textHook) noexcept
       : kTarget_{target},
         kWindow_{window},
         kGuiThread_{guiThread},
         kReport_{report},
-        kImageHook_{std::move(imageHook)} {}
+        kTextHook_{std::move(textHook)} {}
 
   RenderProbe(const RenderProbe&) = delete;
   RenderProbe& operator=(const RenderProbe&) = delete;
@@ -46,7 +46,7 @@ class RenderProbe {
 
   [[nodiscard]] static std::expected<std::unique_ptr<RenderProbe>,
                                      std::error_code>
-  Create(ReportCallback report);
+  Create(MessageSenderFilter filter, ReportCallback report);
   [[nodiscard]] std::expected<void, std::error_code> Start();
   [[nodiscard]] std::expected<void, std::error_code> Stop();
   [[nodiscard]] bool CanRelease() const noexcept;
@@ -69,7 +69,7 @@ class RenderProbe {
   HWND__* const kWindow_;
   const DWORD kGuiThread_;
   const ReportCallback kReport_;
-  const std::unique_ptr<HistoryImageHook> kImageHook_;
+  const std::unique_ptr<MessageTextHook> kTextHook_;
   std::error_code dispatchError_;
   std::error_code hookError_;
   std::error_code repaintError_;
@@ -79,7 +79,7 @@ class RenderProbe {
 };
 
 std::expected<std::unique_ptr<RenderProbe>, std::error_code>
-RenderProbe::Create(ReportCallback report) {
+RenderProbe::Create(MessageSenderFilter filter, ReportCallback report) {
   const auto kTarget{RenderTarget::Locate()};
   if (!kTarget) {
     return std::unexpected{kTarget.error()};
@@ -93,14 +93,20 @@ RenderProbe::Create(ReportCallback report) {
     return std::unexpected{kGuiThread.error()};
   }
   try {
-    auto imageHook{HistoryImageHook::Create(kTarget->HistoryTable(),
-                                            kTarget->RasterTable(), *kGuiThread,
-                                            &DrawRasterMarker)};
-    if (!imageHook) {
-      return std::unexpected{imageHook.error()};
+    auto textHook{MessageTextHook::Create(
+        kTarget->MessageTable(), kTarget->PaintEngine(), kTarget->RasterTable(),
+        *kGuiThread,
+        [filter](const MessageInfo& message, const qt::RasterCanvas& canvas,
+                 const qt::internal::RectF& bounds) noexcept {
+          if (filter.Matches(message)) {
+            DrawRasterMarker(canvas, bounds);
+          }
+        })};
+    if (!textHook) {
+      return std::unexpected{textHook.error()};
     }
     return std::make_unique<RenderProbe>(*kTarget, *kWindow, *kGuiThread,
-                                         report, std::move(*imageHook));
+                                         report, std::move(*textHook));
   } catch (const std::bad_alloc&) {
     return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
   }
@@ -161,7 +167,7 @@ std::expected<void, std::error_code> RenderProbe::Stop() {
 
 std::error_code RenderProbe::Install() noexcept {
   auto& probe{CurrentDispatch()};
-  const auto kInstalled{probe.kImageHook_->Enable()};
+  const auto kInstalled{probe.kTextHook_->Enable()};
   if (!kInstalled) {
     probe.hookError_ = kInstalled.error();
     return {};
@@ -172,16 +178,16 @@ std::error_code RenderProbe::Install() noexcept {
 
 std::error_code RenderProbe::Remove() noexcept {
   auto& probe{CurrentDispatch()};
-  if (probe.kImageHook_->IsDrawing()) {
+  if (probe.kTextHook_->IsDrawing()) {
     return {ERROR_BUSY, std::system_category()};
   }
-  const auto kRemoved{probe.kImageHook_->Disable()};
+  const auto kRemoved{probe.kTextHook_->Disable()};
   if (!kRemoved) {
     probe.hookError_ = kRemoved.error();
-  } else if (!probe.kImageHook_->CanRelease()) {
+  } else if (!probe.kTextHook_->CanRelease()) {
     probe.hookError_ = {ERROR_INVALID_THREAD_ID, std::system_category()};
   }
-  if (probe.kImageHook_->IsDetached()) {
+  if (probe.kTextHook_->IsDetached()) {
     probe.RequestRepaint();
   }
   return {};
@@ -197,7 +203,7 @@ void RenderProbe::RequestRepaint() noexcept {
 }
 
 bool RenderProbe::CanRelease() const noexcept {
-  return dispatchCompleted_ && kImageHook_->CanRelease();
+  return dispatchCompleted_ && kTextHook_->CanRelease();
 }
 
 bool RenderProbe::DispatchCompleted() const noexcept {
@@ -218,21 +224,22 @@ const char* RenderProbe::FailureStep() const noexcept {
 }
 
 void RenderProbe::Report() const noexcept {
-  constexpr std::size_t kReportChars{384};
+  constexpr std::size_t kReportChars{512};
   std::array<char, kReportChars> text{};
-  const auto kPaintError{kImageHook_->PaintError()};
+  const auto kMetadataError{kTextHook_->MetadataError()};
   const int kLength{std::snprintf(
       text.data(), text.size(),
-      "render_probe=completed\nprobe_content=history_images\n"
-      "gui_thread_id=%lu\nhistory_paint_calls=%llu\n"
-      "image_draw_calls=%llu\nskipped_paints=%llu\n"
-      "paint_error=%d\npaint_error_category=%s\nhooks_removed=true\n"
+      "render_probe=completed\nprobe_content=sender_message_text\n"
+      "gui_thread_id=%lu\n"
+      "message_draw_calls=%llu\nqt_text_calls=%llu\n"
+      "message_metadata_failures=%llu\nmessage_metadata_error=%d\n"
+      "message_metadata_error_category=%s\nhooks_removed=true\n"
       "repaint_requested=true\ndll_retained=false\n",
-      kGuiThread_, static_cast<unsigned long long>(kImageHook_->PaintCalls()),
-      static_cast<unsigned long long>(kImageHook_->ImageCalls()),
-      static_cast<unsigned long long>(kImageHook_->SkippedPaints()),
-      kPaintError.value(),
-      kPaintError ? kPaintError.category().name() : "none")};
+      kGuiThread_, static_cast<unsigned long long>(kTextHook_->MessageCalls()),
+      static_cast<unsigned long long>(kTextHook_->TextCalls()),
+      static_cast<unsigned long long>(kTextHook_->MetadataFailures()),
+      kMetadataError.value(),
+      kMetadataError ? kMetadataError.category().name() : "none")};
   if (kLength > 0 && static_cast<std::size_t>(kLength) < text.size()) {
     kReport_({text.data(), static_cast<std::size_t>(kLength)});
   }
@@ -244,7 +251,7 @@ void RenderProbe::ReportFailure(const std::error_code& error, const char* step,
   std::string text{
       std::string{"render_probe=failed\nstep="} + step +
       "\nreason=" + error.message() + "\nhooks_removed=" +
-      (dispatchCompleted_ && kImageHook_->IsDetached() ? "true" : "false") +
+      (dispatchCompleted_ && kTextHook_->IsDetached() ? "true" : "false") +
       "\nrepaint_requested=" +
       (dispatchCompleted_ && repaintRequested_ ? "true" : "false") +
       "\ndll_retained=" + (retained ? "true" : "false") + "\n"};
@@ -315,8 +322,9 @@ void RunProbe(std::unique_ptr<RenderProbe> probe, ReportCallback report) {
       return;
     }
     report(
-        "render_probe=active\nprobe_content=history_images\nduration_ms="
-        "15000\n");
+        "render_probe=active\n"
+        "probe_content=sender_message_text\n"
+        "duration_ms=15000\n");
     constexpr std::chrono::seconds kDuration{15};
     std::this_thread::sleep_for(kDuration);
     const auto kStopped{probe->Stop()};
@@ -336,7 +344,7 @@ void RunProbe(std::unique_ptr<RenderProbe> probe, ReportCallback report) {
 
 }  // namespace
 
-void RunRenderProbe(ReportCallback report) {
+void RunRenderProbe(MessageSenderFilter filter, ReportCallback report) {
   if (report == nullptr) {
     throw std::invalid_argument{"a rendering report callback is required"};
   }
@@ -344,7 +352,7 @@ void RunRenderProbe(ReportCallback report) {
     throw std::system_error{std::error_code{ERROR_BUSY, std::system_category()},
                             "a rendering session is retained"};
   }
-  auto probe{RenderProbe::Create(report)};
+  auto probe{RenderProbe::Create(filter, report)};
   if (!probe) {
     report(std::string{"render_probe=unavailable\nreason="} +
            probe.error().message() + "\n");

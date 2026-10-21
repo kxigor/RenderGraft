@@ -2,6 +2,7 @@
 #include <array>
 #include <exception>
 #include <rgf/core/cast.hpp>
+#include <rgf/qt/raster_image_hook.hpp>
 #include <rgf/qt/raster_text_hook.hpp>
 #include <span>
 
@@ -13,11 +14,17 @@ namespace {
     internal::Painter& painter, internal::GetPaintEngineFn getPaintEngine,
     void** rasterVtable) noexcept {
   auto* engine{getPaintEngine(&painter)};
-  return engine != nullptr && engine->vtable == rasterVtable ? engine : nullptr;
+  return engine != nullptr && (engine->vtable == rasterVtable ||
+                               RasterImageHook::IsInstalledOn(*engine))
+             ? engine
+             : nullptr;
 }
 
 [[nodiscard]] std::array<void*, internal::kRasterVirtualCount + 1> CloneTable(
     void** table) noexcept {
+  if (table == nullptr) {
+    return {};
+  }
   std::array<void*, internal::kRasterVirtualCount + 1> result{};
   std::ranges::copy(std::span{table - 1, internal::kRasterVirtualCount + 1},
                     result.begin());
@@ -54,7 +61,7 @@ RasterTextHook::RasterTextHook(internal::Painter& painter,
                       : nullptr},
       kAfterText_{afterText},
       kPrevious_{Current()},
-      table_{CloneTable(rasterVtable)} {
+      table_{CloneTable(kOriginalTable_)} {
   if (kEngine_ == nullptr) {
     return;
   }

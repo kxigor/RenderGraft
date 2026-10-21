@@ -36,7 +36,7 @@ TODO: Design a coherent logging architecture with singleton access and logger fa
 
 A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
 
-The supported target is Telegram Desktop 7.3.2 x64 with statically linked Qt 6.11.2. A reversible rendering probe masks images in the message history through the client's Qt paint engine. The current scope includes ordinary sender avatars and media drawn as images or pixmaps.
+The supported target is Telegram Desktop 7.3.2 x64 with statically linked Qt 6.11.2. The current reversible probe masks text drawn for messages from a selected Telegram user. Image and avatar interception is also implemented in the adapter library; associating those operations with a selected sender is a separate step.
 
 The `rgf::integrations::telegram` library contains the adapter and rendering probe, with headers under `include/rgf/integrations/telegram/` and implementations under `src/integrations/telegram/`. The supported build profile is private to `src/integrations/telegram/internal/`. The DLL entry point and diagnostic file output remain under `dll/telegram/`; the entry point supplies the probe's report callback. Tests link the adapter library directly.
 
@@ -50,7 +50,9 @@ The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desk
 | T2 | Identify the selected build's Qt rendering path and validate candidate hook points against the running application | done |
 | T3 | Intercept the selected rendering path, draw a test marker, and restore normal rendering when the hook is removed | done |
 | T4 | Identify image and avatar rendering within the message history and validate the interception scope | done |
-| T5 | Add an on/off control for image masking; verify the result during screen capture and restore normal rendering on disable or unload | next |
+| T4a | Associate text drawing with its owning message: message ID, dialog peer, model sender peer, and outgoing flag | done |
+| T4b | Mask message text selectively by the sender's Telegram user ID | done |
+| T5 | Extend sender filtering to images and avatars, including initials placeholders; add an on/off control and verify screen capture and restoration | next |
 | T6 | Separate the shared instrumentation and Qt graphics mechanisms from Telegram-specific state, signatures, and masking rules | planned |
 | T7 | Document a reproducible AI-assisted adapter workflow: inputs, tools, proposed hook points, and checks that accept or reject the findings | planned |
 | T8 | Evaluate masking correctness, runtime overhead, and repeated attach/unload; document the tested Telegram build and limitations | planned |
@@ -59,17 +61,30 @@ Work through these milestones in order and update their status after verificatio
 
 ### Rendering probe
 
-After building `dev-debug`, open a chat with visible images in the supported 64-bit Telegram Desktop build. A group chat also allows checking sender avatars. Run:
+Choose the sender's numeric Telegram user ID when configuring the build:
+
+```sh
+cmake --preset dev-debug -DRGF_TELEGRAM_MASKED_USER_ID=<user-id>
+cmake --build --preset dev-debug
+```
+
+The selected ID stays in the ignored build cache. The default value is `0` (unconfigured); in that case, the DLL reports the missing selection and unloads without installing hooks. The ID is a positive user ID, not a username, phone number, or Bot API chat ID. The selection is fixed for this build; the injector still takes no arguments.
+
+Open a chat with messages from that user in the supported 64-bit Telegram Desktop build. For checking both matching and other senders, use a group chat. Run:
 
 ```sh
 ./build/dev-debug/injector/injector_telegram.exe
 ```
 
-The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, purple rectangles replace `QImage` and `QPixmap` drawing while `HistoryInner::paintEvent` is active. The hook handles rectangle and point overloads, tiled pixmaps, and device-pixel scaling. It obtains the widget's redirected backing-store paint engine and temporarily replaces that engine's private vtable. Offscreen image-cache construction uses other engines and keeps its original drawing operations. Hook installation and removal run on the GUI thread.
+The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, purple rectangles cover Qt text runs drawn inside `Message::draw` for the selected sender. `MessageSenderFilter` compares the full model sender peer ID, and the text callback applies the marker only on a match. Other senders' text keeps its normal rendering. Hook installation and removal run on the GUI thread.
 
-This probe covers the message history. Rasterized icons and decorative images in that scope are masked as well. Sidebar, header, profile avatars, and shapes drawn directly as vectors are outside its scope. Ordinary text keeps its normal rendering. The earlier `MessageTextHook` text probe remains available in the adapter library but is not enabled by this launcher.
+The current probe leaves images and avatars visible. The earlier `HistoryImageHook` can intercept history image/pixmap operations, including ordinary avatars, rectangle and point overloads, tiled pixmaps, and device-pixel scaling. It uses a private table on the widget's redirected backing-store engine, preserving offscreen image-cache construction. It is not enabled by the current launcher because a history-wide image operation does not yet identify its sender.
 
-The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics, history paint calls, image mask calls, and skipped paint scopes are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
+Text callbacks receive an immutable `MessageInfo` snapshot containing the message ID, dialog peer ID, model sender peer ID, and outgoing flag. The snapshot owns copied values and preserves the current message across nested draws. If metadata cannot be read, the original drawing continues and the callback is skipped; the failure is counted. Peer IDs use Telegram's native typed representation. The dialog/message pair is scoped to an account, and temporary client message IDs can change after sending.
+
+This context identifies the message whose draw method is running. The filtering decision covers all its intercepted text runs, including names, timestamps, and reply previews; it does not classify them separately. A forward is selected by its current model sender, not its original author. Anonymous and channel posts do not reveal the human behind them. Usernames are not resolved automatically at runtime; the numeric user ID remains the selector when a name changes.
+
+The probe requests a repaint when starting and stopping, restores the hook, and unloads automatically while Telegram keeps running. Runtime diagnostics, message/text draw calls, and metadata read failures are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Message content and peer IDs are not logged. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
 
 ## Building the current example
 

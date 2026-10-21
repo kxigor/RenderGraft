@@ -92,19 +92,24 @@ RasterImageHook::~RasterImageHook() {
 
 bool RasterImageHook::IsActive() const noexcept { return kEngine_ != nullptr; }
 
+bool RasterImageHook::IsInstalledOn(
+    const internal::PaintEngine& engine) noexcept {
+  for (const auto* hook{Current()}; hook != nullptr; hook = hook->kPrevious_) {
+    if (hook->kEngine_ == &engine && engine.vtable == hook->table_.data() + 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
 internal::PaintEngine* RasterImageHook::FindEngine(
     internal::PaintEngine* engine, void** rasterVtable,
     ImageCallback onImage) noexcept {
   if (engine == nullptr || rasterVtable == nullptr || onImage == nullptr) {
     return nullptr;
   }
-  if (engine->vtable == rasterVtable) {
+  if (engine->vtable == rasterVtable || IsInstalledOn(*engine)) {
     return engine;
-  }
-  for (const auto* hook{Current()}; hook != nullptr; hook = hook->kPrevious_) {
-    if (hook->kEngine_ == engine && engine->vtable == hook->table_.data() + 1) {
-      return engine;
-    }
   }
   return nullptr;
 }

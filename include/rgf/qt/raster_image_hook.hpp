@@ -23,6 +23,8 @@ class RasterImageHook {
   ~RasterImageHook();
 
   [[nodiscard]] bool IsActive() const noexcept;
+  [[nodiscard]] static bool IsInstalledOn(
+      const internal::PaintEngine& engine) noexcept;
 
  private:
   [[nodiscard]] static internal::PaintEngine* FindEngine(

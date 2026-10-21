@@ -10,6 +10,7 @@
 #include <rgf/hook/vmt_hook.hpp>
 #include <rgf/hook/vtable.hpp>
 #include <rgf/integrations/telegram/internal/message.hpp>
+#include <rgf/integrations/telegram/message_info.hpp>
 #include <rgf/qt/internal/abi.hpp>
 #include <rgf/qt/raster_canvas.hpp>
 #include <system_error>
@@ -18,8 +19,9 @@ namespace rgf::integrations::telegram {
 
 class MessageTextHook {
  public:
-  using TextCallback = std::move_only_function<void(
-      const qt::RasterCanvas&, const qt::internal::RectF&) const noexcept>;
+  using TextCallback =
+      std::move_only_function<void(const MessageInfo&, const qt::RasterCanvas&,
+                                   const qt::internal::RectF&) const noexcept>;
 
   [[nodiscard]] static std::expected<std::unique_ptr<MessageTextHook>,
                                      std::error_code>
@@ -42,6 +44,8 @@ class MessageTextHook {
   [[nodiscard]] bool CanRelease() const noexcept;
   [[nodiscard]] std::uint64_t MessageCalls() const noexcept;
   [[nodiscard]] std::uint64_t TextCalls() const noexcept;
+  [[nodiscard]] std::uint64_t MetadataFailures() const noexcept;
+  [[nodiscard]] std::error_code MetadataError() const noexcept;
 
  private:
   MessageTextHook(hook::VmtHook messageDrawHook,
@@ -72,6 +76,9 @@ class MessageTextHook {
   unsigned int drawDepth_{};
   std::uint64_t messageCalls_{};
   std::uint64_t textCalls_{};
+  std::uint64_t metadataFailures_{};
+  std::error_code metadataError_;
+  const MessageInfo* messageInfo_{nullptr};
   std::atomic<bool> foreignThreadObserved_{false};
 };
 

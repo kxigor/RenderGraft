@@ -120,11 +120,19 @@ void MessageTextHook::DrawMessage(
   }
   ++drawDepth_;
   ++messageCalls_;
+  const auto kInfo{MessageInfo::Read(*message)};
+  const auto* kPreviousInfo{
+      std::exchange(messageInfo_, kInfo ? &*kInfo : nullptr)};
+  if (!kInfo) {
+    ++metadataFailures_;
+    metadataError_ = kInfo.error();
+  }
   {
     const qt::RasterTextHook kTextHook{painter, kGetPaintEngine_, kRasterTable_,
                                        &OnTextDrawn};
     kOriginalMessageDraw_(message, painter, context);
   }
+  messageInfo_ = kPreviousInfo;
   --drawDepth_;
 }
 
@@ -132,7 +140,9 @@ void MessageTextHook::OnTextDrawn(const qt::RasterCanvas& canvas,
                                   const qt::internal::RectF& bounds) noexcept {
   auto& target{RequireCallbackTarget()};
   ++target.textCalls_;
-  target.kOnText_(canvas, bounds);
+  if (target.messageInfo_ != nullptr) {
+    target.kOnText_(*target.messageInfo_, canvas, bounds);
+  }
 }
 
 bool MessageTextHook::IsDrawing() const noexcept { return drawDepth_ != 0; }
@@ -151,6 +161,14 @@ std::uint64_t MessageTextHook::MessageCalls() const noexcept {
 }
 
 std::uint64_t MessageTextHook::TextCalls() const noexcept { return textCalls_; }
+
+std::uint64_t MessageTextHook::MetadataFailures() const noexcept {
+  return metadataFailures_;
+}
+
+std::error_code MessageTextHook::MetadataError() const noexcept {
+  return metadataError_;
+}
 
 std::expected<hook::VmtHook, std::error_code>
 MessageTextHook::PrepareMessageDrawHook(hook::Vtable messageTable) noexcept {

@@ -15,6 +15,17 @@ set_target_properties(rgf_telegram PROPERTIES
 
 target_compile_features(rgf_telegram PRIVATE cxx_std_23)
 
+set(RGF_TELEGRAM_MASKED_USER_ID "0" CACHE STRING "Telegram user ID whose message text is masked (0 means unconfigured)")
+string(LENGTH "${RGF_TELEGRAM_MASKED_USER_ID}" maskedUserIdLength)
+if(NOT RGF_TELEGRAM_MASKED_USER_ID MATCHES "^(0|[1-9][0-9]*)$"
+    OR maskedUserIdLength GREATER 15
+    OR RGF_TELEGRAM_MASKED_USER_ID GREATER 281474976710655)
+  message(FATAL_ERROR "RGF_TELEGRAM_MASKED_USER_ID must be a decimal user ID from 1 to 281474976710655, or 0 when unconfigured.")
+endif()
+target_compile_definitions(rgf_telegram PRIVATE
+  RGF_TELEGRAM_MASKED_USER_ID=${RGF_TELEGRAM_MASKED_USER_ID}ULL
+)
+
 target_link_libraries(rgf_telegram PRIVATE rgf::module rgf::integrations::telegram rgf::win psapi)
 
 if(TARGET project_options)
