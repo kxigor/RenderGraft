@@ -15,9 +15,20 @@ inline constexpr std::uintptr_t kMessageTableRva{0x9094968};
 inline constexpr std::uintptr_t kMessageDrawRva{0x1dbed50};
 inline constexpr std::size_t kMessageDrawSlot{10};
 
+inline constexpr std::uintptr_t kHistoryTableRva{0x90ac088};
+inline constexpr std::uintptr_t kHistoryPaintRva{0x1f832b0};
+inline constexpr std::size_t kHistoryPaintSlot{27};
+inline constexpr std::uintptr_t kHistoryPaintDeviceTableRva{0x90abfb0};
+inline constexpr std::uintptr_t kWidgetRedirectedRva{0x5e0e7e0};
+
 inline constexpr std::uintptr_t kRasterVtableRva{0x73b5638};
 inline constexpr std::uintptr_t kDrawTextItemRva{0x6354c30};
 inline constexpr std::uintptr_t kFillColorRva{0x6356ef0};
+inline constexpr std::uintptr_t kDrawPixmapRectRva{0x6352e60};
+inline constexpr std::uintptr_t kDrawTiledPixmapRva{0x6355150};
+inline constexpr std::uintptr_t kDrawImageRectRva{0x6351150};
+inline constexpr std::uintptr_t kDrawPixmapPointRva{0x6352b50};
+inline constexpr std::uintptr_t kDrawImagePointRva{0x6350c90};
 inline constexpr std::uintptr_t kGetPaintEngineRva{0x614e2b0};
 inline constexpr std::array<std::uint8_t, 11> kGetPaintEngineCode{
     0x48, 0x8b, 0x01, 0x48, 0x8b, 0x80, 0x18, 0x01, 0x00, 0x00, 0xc3};

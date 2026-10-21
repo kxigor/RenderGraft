@@ -22,6 +22,7 @@ class RenderTarget {
   ~RenderTarget() = default;
 
   [[nodiscard]] hook::Vtable MessageTable() const noexcept;
+  [[nodiscard]] hook::Vtable HistoryTable() const noexcept;
   [[nodiscard]] void** RasterTable() const noexcept;
   [[nodiscard]] qt::internal::GetPaintEngineFn PaintEngine() const noexcept;
   [[nodiscard]] qt::WidgetUpdater WidgetUpdates() const noexcept;

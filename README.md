@@ -36,7 +36,7 @@ TODO: Design a coherent logging architecture with singleton access and logger fa
 
 A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
 
-The supported target is Telegram Desktop 7.3.2 x64 with statically linked Qt 6.11.2. A reversible rendering probe draws test markers through the client's Qt paint engine. The next step is to select the sensitive interface elements and relate them to application state.
+The supported target is Telegram Desktop 7.3.2 x64 with statically linked Qt 6.11.2. A reversible rendering probe masks images in the message history through the client's Qt paint engine. The current scope includes ordinary sender avatars and media drawn as images or pixmaps.
 
 The `rgf::integrations::telegram` library contains the adapter and rendering probe, with headers under `include/rgf/integrations/telegram/` and implementations under `src/integrations/telegram/`. The supported build profile is private to `src/integrations/telegram/internal/`. The DLL entry point and diagnostic file output remain under `dll/telegram/`; the entry point supplies the probe's report callback. Tests link the adapter library directly.
 
@@ -49,8 +49,8 @@ The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desk
 | T1 | Basic DLL injection into Telegram, runtime diagnostics, and automatic unload while the client keeps running | done |
 | T2 | Identify the selected build's Qt rendering path and validate candidate hook points against the running application | done |
 | T3 | Intercept the selected rendering path, draw a test marker, and restore normal rendering when the hook is removed | done |
-| T4 | Choose the sensitive interface elements to hide and relate their painted regions to the relevant internal application state | next |
-| T5 | Implement masking through the rendering hook, with an on/off control; verify the result during screen capture and restore normal rendering on disable or unload | planned |
+| T4 | Identify image and avatar rendering within the message history and validate the interception scope | done |
+| T5 | Add an on/off control for image masking; verify the result during screen capture and restore normal rendering on disable or unload | next |
 | T6 | Separate the shared instrumentation and Qt graphics mechanisms from Telegram-specific state, signatures, and masking rules | planned |
 | T7 | Document a reproducible AI-assisted adapter workflow: inputs, tools, proposed hook points, and checks that accept or reject the findings | planned |
 | T8 | Evaluate masking correctness, runtime overhead, and repeated attach/unload; document the tested Telegram build and limitations | planned |
@@ -59,15 +59,17 @@ Work through these milestones in order and update their status after verificatio
 
 ### Rendering probe
 
-After building `dev-debug`, open a chat with visible messages in the supported 64-bit Telegram Desktop build and run:
+After building `dev-debug`, open a chat with visible images in the supported 64-bit Telegram Desktop build. A group chat also allows checking sender avatars. Run:
 
 ```sh
 ./build/dev-debug/injector/injector_telegram.exe
 ```
 
-The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, opaque purple rectangles cover text rendered through `QRasterPaintEngine::drawTextItem` while `HistoryView::Message::draw` is active. Each rectangle follows the text run's width, ascent, and descent, with a small margin. The Qt hook uses a temporary private vtable on the current paint engine. Hook installation and removal run on the GUI thread.
+The launcher loads `rgf_telegram.dll` into `Telegram.exe`. For 15 seconds, purple rectangles replace `QImage` and `QPixmap` drawing while `HistoryInner::paintEvent` is active. The hook handles rectangle and point overloads, tiled pixmaps, and device-pixel scaling. It obtains the widget's redirected backing-store paint engine and temporarily replaces that engine's private vtable. Offscreen image-cache construction uses other engines and keeps its original drawing operations. Hook installation and removal run on the GUI thread.
 
-The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics and call counts are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
+This probe covers the message history. Rasterized icons and decorative images in that scope are masked as well. Sidebar, header, profile avatars, and shapes drawn directly as vectors are outside its scope. Ordinary text keeps its normal rendering. The earlier `MessageTextHook` text probe remains available in the adapter library but is not enabled by this launcher.
+
+The probe requests a repaint when starting and stopping, restores the hooks, and unloads automatically while Telegram keeps running. Runtime diagnostics, history paint calls, image mask calls, and skipped paint scopes are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
 
 ## Building the current example
 

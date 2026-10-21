@@ -5,6 +5,7 @@
 namespace rgf::qt {
 
 class RasterTextHook;
+class RasterImageHook;
 
 class RasterCanvas {
  public:
@@ -21,6 +22,7 @@ class RasterCanvas {
 
  private:
   friend class RasterTextHook;
+  friend class RasterImageHook;
 
   RasterCanvas(internal::PaintEngine& engine,
                internal::FillColorFn fillColor) noexcept;

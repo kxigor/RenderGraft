@@ -9,6 +9,7 @@
 #include <rgf/win/error.hpp>
 #include <rgf/win/module_view.hpp>
 #include <span>
+#include <utility>
 
 #include "internal/build.hpp"
 
@@ -113,6 +114,36 @@ namespace {
                        internal::kUpdateWidgetCode);
 }
 
+[[nodiscard]] std::expected<void, std::error_code> CheckImageTables(
+    std::uintptr_t base) noexcept {
+  const auto kHistory{CheckSlot(base, internal::kHistoryTableRva,
+                                internal::kHistoryPaintSlot,
+                                internal::kHistoryPaintRva)};
+  if (!kHistory) {
+    return kHistory;
+  }
+  const auto kRedirected{CheckSlot(base, internal::kHistoryPaintDeviceTableRva,
+                                   qt::internal::kPaintDeviceRedirectedSlot,
+                                   internal::kWidgetRedirectedRva)};
+  if (!kRedirected) {
+    return kRedirected;
+  }
+  constexpr std::array<std::pair<std::size_t, std::uintptr_t>, 5> kSlots{
+      {{qt::internal::kDrawPixmapRectSlot, internal::kDrawPixmapRectRva},
+       {qt::internal::kDrawTiledPixmapSlot, internal::kDrawTiledPixmapRva},
+       {qt::internal::kDrawImageRectSlot, internal::kDrawImageRectRva},
+       {qt::internal::kDrawPixmapPointSlot, internal::kDrawPixmapPointRva},
+       {qt::internal::kDrawImagePointSlot, internal::kDrawImagePointRva}}};
+  for (const auto& [slot, functionRva] : kSlots) {
+    const auto kChecked{
+        CheckSlot(base, internal::kRasterVtableRva, slot, functionRva)};
+    if (!kChecked) {
+      return kChecked;
+    }
+  }
+  return {};
+}
+
 [[nodiscard]] std::expected<void, std::error_code> CheckTables(
     std::uintptr_t base) noexcept {
   const auto kMessage{CheckSlot(base, internal::kMessageTableRva,
@@ -127,8 +158,13 @@ namespace {
   if (!kText) {
     return kText;
   }
-  return CheckSlot(base, internal::kRasterVtableRva,
-                   qt::internal::kFillColorSlot, internal::kFillColorRva);
+  const auto kFill{CheckSlot(base, internal::kRasterVtableRva,
+                             qt::internal::kFillColorSlot,
+                             internal::kFillColorRva)};
+  if (!kFill) {
+    return kFill;
+  }
+  return CheckImageTables(base);
 }
 
 }  // namespace
@@ -162,6 +198,11 @@ RenderTarget::RenderTarget(std::uintptr_t base) noexcept : base_{base} {}
 hook::Vtable RenderTarget::MessageTable() const noexcept {
   return hook::Vtable{
       std::bit_cast<void**>(base_ + internal::kMessageTableRva)};
+}
+
+hook::Vtable RenderTarget::HistoryTable() const noexcept {
+  return hook::Vtable{
+      std::bit_cast<void**>(base_ + internal::kHistoryTableRva)};
 }
 
 void** RenderTarget::RasterTable() const noexcept {

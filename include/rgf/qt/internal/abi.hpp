@@ -13,6 +13,47 @@ namespace rgf::qt::internal {
 
 struct Painter;
 struct Widget;
+struct PaintEvent;
+
+struct PaintDevice {
+  void** vtable;
+  std::uint16_t painters{};
+};
+
+// Only the QImageData metric prefix is represented.
+struct ImageData {
+  std::int32_t referenceCount;
+  std::int32_t width;
+  std::int32_t height;
+  std::int32_t depth;
+  std::intptr_t byteCount;
+  double devicePixelRatio;
+};
+
+struct Image {
+  PaintDevice device;
+  ImageData* data;
+};
+
+// QPlatformPixmap is polymorphic and inherits QSharedData's reference count.
+// Its dimensions precede the remaining backend-specific object state.
+struct PlatformPixmap {
+  void** vtable;
+  std::int32_t referenceCount;
+  std::int32_t width;
+  std::int32_t height;
+  std::int32_t depth;
+};
+
+struct Pixmap {
+  PaintDevice device;
+  PlatformPixmap* data;
+};
+
+struct Point {
+  std::int32_t x;
+  std::int32_t y;
+};
 
 // QTextItemInt starts with these signed QFixed metrics (26.6 fixed point).
 // Only the metric prefix is represented; the host object continues past it.
@@ -77,15 +118,48 @@ struct WidgetMapper {
 };
 
 using GetPaintEngineFn = PaintEngine* (*)(const Painter* painter);
+using RedirectedDeviceFn = PaintDevice* (*)(const PaintDevice* device,
+                                            Point* offset);
+using GetDevicePaintEngineFn = PaintEngine* (*)(const PaintDevice* device);
 using DrawTextItemFn = void (*)(PaintEngine* engine, const PointF& position,
                                 const TextItem& item);
+using DrawPixmapRectFn = void (*)(PaintEngine* engine, const RectF& rectangle,
+                                  const Pixmap& pixmap, const RectF& source);
+using DrawTiledPixmapFn = void (*)(PaintEngine* engine, const RectF& rectangle,
+                                   const Pixmap& pixmap, const PointF& source);
+using DrawImageRectFn = void (*)(PaintEngine* engine, const RectF& rectangle,
+                                 const Image& image, const RectF& source,
+                                 std::int32_t flags);
+using DrawPixmapPointFn = void (*)(PaintEngine* engine, const PointF& position,
+                                   const Pixmap& pixmap);
+using DrawImagePointFn = void (*)(PaintEngine* engine, const PointF& position,
+                                  const Image& image);
+using PixmapDevicePixelRatioFn = double (*)(const PlatformPixmap* pixmap);
 using FillColorFn = void (*)(PaintEngine* engine, const RectF& rectangle,
                              const Color& color);
 using UpdateWidgetFn = void (*)(Widget* widget);
 
 inline constexpr std::size_t kRasterVirtualCount{56};
+inline constexpr std::size_t kDrawPixmapRectSlot{15};
 inline constexpr std::size_t kDrawTextItemSlot{16};
+inline constexpr std::size_t kDrawTiledPixmapSlot{17};
+inline constexpr std::size_t kDrawImageRectSlot{18};
 inline constexpr std::size_t kFillColorSlot{39};
+inline constexpr std::size_t kDrawPixmapPointSlot{42};
+inline constexpr std::size_t kDrawImagePointSlot{43};
+inline constexpr std::size_t kPixmapDevicePixelRatioSlot{19};
+
+inline constexpr std::size_t kImageDataOffset{16};
+inline constexpr std::size_t kImageWidthOffset{4};
+inline constexpr std::size_t kImageHeightOffset{8};
+inline constexpr std::size_t kImageRatioOffset{24};
+inline constexpr std::size_t kPixmapWidthOffset{12};
+inline constexpr std::size_t kPixmapHeightOffset{16};
+
+// QWidget's QPaintDevice base and virtual entries in the inspected MSVC ABI.
+inline constexpr std::size_t kWidgetPaintDeviceOffset{16};
+inline constexpr std::size_t kPaintDeviceRedirectedSlot{5};
+inline constexpr std::size_t kPaintDevicePaintEngineSlot{2};
 
 inline constexpr double kFixedScale{64.0};
 inline constexpr std::size_t kTextItemMetricsSize{12};
@@ -116,6 +190,12 @@ inline constexpr std::size_t kWidgetHashWidgetOffset{8};
 inline constexpr std::size_t kWidgetHostPointerSize{8};
 
 static_assert(std::is_standard_layout_v<PaintEngine>);
+static_assert(std::is_standard_layout_v<PaintDevice>);
+static_assert(std::is_standard_layout_v<ImageData>);
+static_assert(std::is_standard_layout_v<Image>);
+static_assert(std::is_standard_layout_v<PlatformPixmap>);
+static_assert(std::is_standard_layout_v<Pixmap>);
+static_assert(std::is_standard_layout_v<Point>);
 static_assert(std::is_standard_layout_v<TextItem>);
 static_assert(std::is_standard_layout_v<PointF>);
 static_assert(std::is_standard_layout_v<RectF>);
@@ -125,6 +205,19 @@ static_assert(std::is_standard_layout_v<WidgetHashSpan>);
 static_assert(std::is_standard_layout_v<WidgetHashData>);
 static_assert(std::is_standard_layout_v<WidgetMapper>);
 static_assert(offsetof(PaintEngine, vtable) == 0);
+static_assert(offsetof(PaintDevice, vtable) == 0);
+static_assert(offsetof(ImageData, width) == kImageWidthOffset);
+static_assert(offsetof(ImageData, height) == kImageHeightOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(Image, data) == kImageDataOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(Pixmap, data) == kImageDataOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(ImageData, devicePixelRatio) == kImageRatioOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(PlatformPixmap, width) == kPixmapWidthOffset);
+static_assert(sizeof(void*) != kWidgetHostPointerSize ||
+              offsetof(PlatformPixmap, height) == kPixmapHeightOffset);
 static_assert(sizeof(TextItem) == kTextItemMetricsSize);
 static_assert(offsetof(TextItem, descent) == 0);
 static_assert(offsetof(TextItem, ascent) == kTextItemAscentOffset);

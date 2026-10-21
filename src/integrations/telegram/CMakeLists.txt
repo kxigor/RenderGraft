@@ -1,5 +1,6 @@
 add_library(rgf_integrations_telegram STATIC
   internal/build.hpp
+  history_image_hook.cpp
   message_text_hook.cpp
   raster_marker.cpp
   render_probe.cpp

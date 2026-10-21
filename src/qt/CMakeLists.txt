@@ -1,6 +1,8 @@
 add_library(rgf_qt STATIC
   raster_canvas.cpp
+  raster_image_hook.cpp
   raster_text_hook.cpp
+  widget_paint_engine.cpp
   widget_updater.cpp
 )
 add_library(rgf::qt ALIAS rgf_qt)
