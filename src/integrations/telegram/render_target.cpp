@@ -120,23 +120,45 @@ namespace {
   if (!kDisplayFrom) {
     return kDisplayFrom;
   }
-  return CheckFunction(base + internal::kItemFullIdRva,
-                       internal::kItemFullIdCode);
+  const auto kItemId{CheckFunction(base + internal::kItemFullIdRva,
+                                   internal::kItemFullIdCode)};
+  if (!kItemId) {
+    return kItemId;
+  }
+  return CheckFunction(base + internal::kPaintUserpicRva,
+                       internal::kPaintUserpicCode);
+}
+
+[[nodiscard]] std::expected<void, std::error_code> CheckHistoryTables(
+    std::uintptr_t base) noexcept {
+  constexpr std::array<std::pair<std::uintptr_t, std::uintptr_t>, 2> kPaints{
+      {{internal::kHistoryTableRva, internal::kHistoryPaintRva},
+       {internal::kTopicHistoryTableRva, internal::kTopicHistoryPaintRva}}};
+  for (const auto& [table, paint] : kPaints) {
+    const auto kChecked{
+        CheckSlot(base, table, internal::kHistoryPaintSlot, paint)};
+    if (!kChecked) {
+      return kChecked;
+    }
+  }
+  for (const auto kTable :
+       std::array{internal::kHistoryPaintDeviceTableRva,
+                  internal::kTopicHistoryPaintDeviceTableRva}) {
+    const auto kChecked{CheckSlot(base, kTable,
+                                  qt::internal::kPaintDeviceRedirectedSlot,
+                                  internal::kWidgetRedirectedRva)};
+    if (!kChecked) {
+      return kChecked;
+    }
+  }
+  return {};
 }
 
 [[nodiscard]] std::expected<void, std::error_code> CheckImageTables(
     std::uintptr_t base) noexcept {
-  const auto kHistory{CheckSlot(base, internal::kHistoryTableRva,
-                                internal::kHistoryPaintSlot,
-                                internal::kHistoryPaintRva)};
-  if (!kHistory) {
-    return kHistory;
-  }
-  const auto kRedirected{CheckSlot(base, internal::kHistoryPaintDeviceTableRva,
-                                   qt::internal::kPaintDeviceRedirectedSlot,
-                                   internal::kWidgetRedirectedRva)};
-  if (!kRedirected) {
-    return kRedirected;
+  const auto kHistories{CheckHistoryTables(base)};
+  if (!kHistories) {
+    return kHistories;
   }
   constexpr std::array<std::pair<std::size_t, std::uintptr_t>, 5> kSlots{
       {{qt::internal::kDrawPixmapRectSlot, internal::kDrawPixmapRectRva},
@@ -215,6 +237,11 @@ hook::Vtable RenderTarget::HistoryTable() const noexcept {
       std::bit_cast<void**>(base_ + internal::kHistoryTableRva)};
 }
 
+hook::Vtable RenderTarget::TopicHistoryTable() const noexcept {
+  return hook::Vtable{
+      std::bit_cast<void**>(base_ + internal::kTopicHistoryTableRva)};
+}
+
 void** RenderTarget::RasterTable() const noexcept {
   return std::bit_cast<void**>(base_ + internal::kRasterVtableRva);
 }
@@ -222,6 +249,11 @@ void** RenderTarget::RasterTable() const noexcept {
 qt::internal::GetPaintEngineFn RenderTarget::PaintEngine() const noexcept {
   return std::bit_cast<qt::internal::GetPaintEngineFn>(
       base_ + internal::kGetPaintEngineRva);
+}
+
+internal::PaintPeerUserpicFn RenderTarget::UserpicPaint() const noexcept {
+  return core::PointerCast<internal::PaintPeerUserpicFn>(
+      base_ + internal::kPaintUserpicRva);
 }
 
 qt::WidgetUpdater RenderTarget::WidgetUpdates() const noexcept {

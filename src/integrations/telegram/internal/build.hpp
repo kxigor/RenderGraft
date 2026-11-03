@@ -15,6 +15,11 @@ inline constexpr std::uint32_t kChecksum{0xee7a692};
 inline constexpr std::uintptr_t kMessageTableRva{0x90b0b08};
 inline constexpr std::uintptr_t kMessageDrawRva{0x1dc09b0};
 inline constexpr std::size_t kMessageDrawSlot{10};
+inline constexpr std::uintptr_t kPaintUserpicRva{0x1670b90};
+inline constexpr std::array<std::uint8_t, 32> kPaintUserpicCode{
+    0x48, 0x89, 0x54, 0x24, 0x10, 0x53, 0x55, 0x56, 0x57, 0x41, 0x56,
+    0x48, 0x83, 0xec, 0x50, 0x33, 0xed, 0x49, 0x8b, 0xd9, 0x80, 0x79,
+    0x0e, 0x02, 0x8b, 0xc5, 0x4d, 0x8b, 0xf0, 0x48, 0x8b, 0xf1};
 inline constexpr std::uintptr_t kElementDisplayFromRva{0x1d60fb0};
 inline constexpr std::array<std::uint8_t, 33> kElementDisplayFromCode{
     0x80, 0xb9, 0xfa, 0x00, 0x00, 0x00, 0x0b, 0x48, 0x8b, 0x41, 0x40,
@@ -30,6 +35,9 @@ inline constexpr std::uintptr_t kHistoryTableRva{0x90c7f98};
 inline constexpr std::uintptr_t kHistoryPaintRva{0x1f84f80};
 inline constexpr std::size_t kHistoryPaintSlot{27};
 inline constexpr std::uintptr_t kHistoryPaintDeviceTableRva{0x90c8238};
+inline constexpr std::uintptr_t kTopicHistoryTableRva{0x90af868};
+inline constexpr std::uintptr_t kTopicHistoryPaintRva{0x1d93290};
+inline constexpr std::uintptr_t kTopicHistoryPaintDeviceTableRva{0x90af7d8};
 inline constexpr std::uintptr_t kWidgetRedirectedRva{0x5e25680};
 
 inline constexpr std::uintptr_t kRasterVtableRva{0x73d0618};

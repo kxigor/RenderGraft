@@ -13,6 +13,7 @@
 #include <rgf/integrations/telegram/history_image_hook.hpp>
 #include <rgf/integrations/telegram/internal/history.hpp>
 #include <rgf/qt/internal/abi.hpp>
+#include <span>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -31,6 +32,9 @@ using DeviceTable = std::array<void*, qt::kPaintDeviceRedirectedSlot + 1>;
 constexpr SIZE_T kPageSize{4096};
 constexpr qt::RectF kBounds{
     .x = 12.0, .y = 24.0, .width = 96.0, .height = 64.0};
+constexpr qt::RectF kSource{.x = 3.0, .y = 4.0, .width = 48.0, .height = 32.0};
+constexpr qt::Image kImage{};
+constexpr std::int32_t kImageFlags{0x2468};
 constexpr qt::Color kColor{.spec = 1,
                            .alpha = 0xffff,
                            .red = 0x8080,
@@ -44,13 +48,16 @@ struct ProbeEngine : qt::PaintEngine {
   explicit ProbeEngine(void** table) : PaintEngine{table} {}
 
   void DrawImage() {
-    const qt::Image kImage{};
     rgf::core::PointerCast<qt::DrawImageRectFn>(vtable[qt::kDrawImageRectSlot])(
-        this, kBounds, kImage, kBounds, 0);
+        this, kBounds, kImage, kSource, kImageFlags);
   }
 
   std::vector<Event> events;
   unsigned int originalImageCalls{};
+  const qt::RectF* originalRectangle{nullptr};
+  const qt::Image* originalImage{nullptr};
+  const qt::RectF* originalSource{nullptr};
+  std::int32_t originalFlags{};
   qt::RectF rectangle{};
   qt::Color color{};
 };
@@ -61,11 +68,15 @@ struct ProbeEngine : qt::PaintEngine {
   return *static_cast<ProbeEngine*>(engine);
 }
 
-void OriginalImage(qt::PaintEngine* engine, const qt::RectF& /*rectangle*/,
-                   const qt::Image& /*image*/, const qt::RectF& /*source*/,
-                   std::int32_t /*flags*/) {
+void OriginalImage(qt::PaintEngine* engine, const qt::RectF& rectangle,
+                   const qt::Image& image, const qt::RectF& source,
+                   std::int32_t flags) {
   auto& probe{Engine(engine)};
   ++probe.originalImageCalls;
+  probe.originalRectangle = &rectangle;
+  probe.originalImage = &image;
+  probe.originalSource = &source;
+  probe.originalFlags = flags;
   probe.events.push_back(Event::Image);
 }
 
@@ -124,12 +135,14 @@ struct ProbeDevice {
 struct PaintState {
   ProbeEngine* engine;
   unsigned int originalCalls{};
+  unsigned int alternateCalls{};
   qt::PaintEvent* receivedEvent{};
   std::function<void()> duringPaint;
 };
 
 struct ProbeWidget {
-  std::array<std::byte, qt::kWidgetPaintDeviceOffset> primary{};
+  void** vtable{nullptr};
+  std::array<std::byte, qt::kWidgetPaintDeviceOffset - sizeof(void*)> primary{};
   ProbeDevice device;
   PaintState* paint{nullptr};
 };
@@ -148,6 +161,11 @@ void OriginalPaint(qt::Widget* widget, qt::PaintEvent* event) {
   state.engine->events.push_back(Event::Finished);
 }
 
+void OriginalOtherPaint(qt::Widget* widget, qt::PaintEvent* event) {
+  ++rgf::core::PointerCast<ProbeWidget*>(widget)->paint->alternateCalls;
+  OriginalPaint(widget, event);
+}
+
 class HistoryImageHookUnit : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -157,6 +175,12 @@ class HistoryImageHookUnit : public ::testing::Test {
     table = static_cast<void**>(page);
     table[telegram::kHistoryPaintSlot] =
         rgf::core::PointerCast<void*>(&OriginalPaint);
+    constexpr std::size_t kOtherTableOffset{128};
+    otherTable = table + kOtherTableOffset;
+    otherTable[telegram::kHistoryPaintSlot] =
+        rgf::core::PointerCast<void*>(&OriginalOtherPaint);
+    widget.vtable = table;
+    otherWidget.vtable = otherTable;
     DWORD previous{};
     ASSERT_NE(VirtualProtect(page, kPageSize, PAGE_READONLY, &previous), FALSE);
     CreateHook();
@@ -173,24 +197,36 @@ class HistoryImageHookUnit : public ::testing::Test {
   }
 
   void CreateHook() {
+    const std::array kTables{rgf::hook::Vtable{table}};
+    CreateHook(kTables);
+  }
+
+  void CreateHook(std::span<const rgf::hook::Vtable> tables) {
     auto calls{std::make_unique<unsigned int>(0)};
     callbackCalls = calls.get();
     auto createdHook{HistoryImageHook::Create(
-        rgf::hook::Vtable{table}, rasterTable.data() + 1, GetCurrentThreadId(),
+        tables, rasterTable.data() + 1, GetCurrentThreadId(),
         [this, calls = std::move(calls)](const rgf::qt::RasterCanvas& canvas,
                                          const qt::RectF& bounds) noexcept {
           ++*calls;
           EXPECT_EQ(hook->ImageCalls(), *calls);
           engine.events.push_back(Event::Callback);
+          if (!maskImages) {
+            return false;
+          }
           canvas.FillRect(bounds, kColor);
+          return true;
         })};
     ASSERT_TRUE(createdHook.has_value()) << createdHook.error().message();
     hook = std::move(*createdHook);
   }
 
-  void Paint() {
-    rgf::core::PointerCast<telegram::HistoryPaintFn>(Slot())(
-        rgf::core::PointerCast<qt::Widget*>(&widget),
+  void Paint() { Paint(widget); }
+
+  void Paint(ProbeWidget& renderedWidget) {
+    rgf::core::PointerCast<telegram::HistoryPaintFn>(
+        renderedWidget.vtable[telegram::kHistoryPaintSlot])(
+        rgf::core::PointerCast<qt::Widget*>(&renderedWidget),
         rgf::core::PointerCast<qt::PaintEvent*>(&eventToken));
   }
 
@@ -231,17 +267,23 @@ class HistoryImageHookUnit : public ::testing::Test {
  public:
   LPVOID page{nullptr};
   void** table{nullptr};
+  void** otherTable{nullptr};
   RasterTable rasterTable{MakeRasterTable()};
   ProbeEngine engine{rasterTable.data() + 1};
   DeviceTable deviceTable{MakeDeviceTable()};
   ProbeDevice backing{.device = {.vtable = deviceTable.data()},
                       .engine = &engine};
   PaintState paint{.engine = &engine};
+  PaintState otherPaint{.engine = &engine};
   ProbeWidget widget{.device = {.device = {.vtable = deviceTable.data()},
                                 .redirected = &backing.device},
                      .paint = &paint};
+  ProbeWidget otherWidget{.device = {.device = {.vtable = deviceTable.data()},
+                                     .redirected = &backing.device},
+                          .paint = &otherPaint};
   int eventToken{};
   unsigned int* callbackCalls{nullptr};
+  bool maskImages{true};
   std::unique_ptr<HistoryImageHook> hook;
 };
 
@@ -259,6 +301,88 @@ TEST_F(HistoryImageHookUnit, CreationLeavesOriginalPaintUnchanged) {
   EXPECT_EQ(widget.device.redirectCalls, 0);
   EXPECT_EQ(hook->PaintCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
+}
+
+TEST_F(HistoryImageHookUnit, RejectsEmptyPaintTables) {
+  const auto kCreated{HistoryImageHook::Create(
+      {}, rasterTable.data() + 1, GetCurrentThreadId(),
+      [](const rgf::qt::RasterCanvas&, const qt::RectF&) noexcept {
+        return false;
+      })};
+
+  ASSERT_FALSE(kCreated.has_value());
+  EXPECT_EQ(kCreated.error(),
+            std::make_error_code(std::errc::invalid_argument));
+  EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalPaint));
+}
+
+TEST_F(HistoryImageHookUnit, RejectsNullPaintTable) {
+  const std::array kTables{rgf::hook::Vtable{table},
+                           rgf::hook::Vtable{nullptr}};
+  const auto kCreated{HistoryImageHook::Create(
+      kTables, rasterTable.data() + 1, GetCurrentThreadId(),
+      [](const rgf::qt::RasterCanvas&, const qt::RectF&) noexcept {
+        return false;
+      })};
+
+  ASSERT_FALSE(kCreated.has_value());
+  EXPECT_EQ(kCreated.error(),
+            std::make_error_code(std::errc::invalid_argument));
+  EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalPaint));
+}
+
+TEST_F(HistoryImageHookUnit, RejectsDuplicatePaintTables) {
+  const std::array kTables{rgf::hook::Vtable{table}, rgf::hook::Vtable{table}};
+  const auto kCreated{HistoryImageHook::Create(
+      kTables, rasterTable.data() + 1, GetCurrentThreadId(),
+      [](const rgf::qt::RasterCanvas&, const qt::RectF&) noexcept {
+        return false;
+      })};
+
+  ASSERT_FALSE(kCreated.has_value());
+  EXPECT_EQ(kCreated.error(),
+            std::make_error_code(std::errc::invalid_argument));
+  EXPECT_EQ(Slot(), rgf::core::PointerCast<void*>(&OriginalPaint));
+}
+
+TEST_F(HistoryImageHookUnit, DispatchesEachWidgetToItsOwnPaintAndRestoresBoth) {
+  hook.reset();
+  const std::array kTables{rgf::hook::Vtable{table},
+                           rgf::hook::Vtable{otherTable}};
+  CreateHook(kTables);
+  ASSERT_NE(hook, nullptr);
+  ASSERT_TRUE(hook->Enable().has_value());
+  EXPECT_EQ(table[telegram::kHistoryPaintSlot],
+            otherTable[telegram::kHistoryPaintSlot]);
+
+  Paint();
+  Paint(otherWidget);
+
+  EXPECT_EQ(paint.originalCalls, 1);
+  EXPECT_EQ(paint.alternateCalls, 0);
+  EXPECT_EQ(otherPaint.originalCalls, 1);
+  EXPECT_EQ(otherPaint.alternateCalls, 1);
+  EXPECT_EQ(hook->PaintCalls(), 2);
+  EXPECT_EQ(hook->ImageCalls(), 2);
+  EXPECT_EQ(*callbackCalls, 2);
+  EXPECT_EQ(engine.originalImageCalls, 0);
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+  ASSERT_TRUE(hook->Disable().has_value());
+  EXPECT_TRUE(hook->CanRelease());
+  EXPECT_EQ(table[telegram::kHistoryPaintSlot],
+            rgf::core::PointerCast<void*>(&OriginalPaint));
+  EXPECT_EQ(otherTable[telegram::kHistoryPaintSlot],
+            rgf::core::PointerCast<void*>(&OriginalOtherPaint));
+
+  Paint();
+  Paint(otherWidget);
+
+  EXPECT_EQ(paint.originalCalls, 2);
+  EXPECT_EQ(paint.alternateCalls, 0);
+  EXPECT_EQ(otherPaint.originalCalls, 2);
+  EXPECT_EQ(otherPaint.alternateCalls, 2);
+  EXPECT_EQ(engine.originalImageCalls, 2);
+  EXPECT_EQ(hook->ImageCalls(), 2);
 }
 
 TEST_F(HistoryImageHookUnit,
@@ -307,6 +431,27 @@ TEST_F(HistoryImageHookUnit, MissingRedirectionReportsFailureAndRunsOriginal) {
   EXPECT_EQ(hook->ImageCalls(), 0);
   EXPECT_EQ(*callbackCalls, 0);
   EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+}
+
+TEST_F(HistoryImageHookUnit,
+       DeclinedCallbackPreservesTheOriginalImageAndRestoresTheEngine) {
+  maskImages = false;
+  ASSERT_TRUE(hook->Enable().has_value());
+
+  Paint();
+
+  EXPECT_EQ(hook->PaintCalls(), 1);
+  EXPECT_EQ(hook->ImageCalls(), 1);
+  EXPECT_EQ(*callbackCalls, 1);
+  EXPECT_EQ(engine.originalImageCalls, 1);
+  EXPECT_EQ(engine.originalRectangle, &kBounds);
+  EXPECT_EQ(engine.originalImage, &kImage);
+  EXPECT_EQ(engine.originalSource, &kSource);
+  EXPECT_EQ(engine.originalFlags, kImageFlags);
+  EXPECT_EQ(engine.events, (std::vector{Event::Paint, Event::Callback,
+                                        Event::Image, Event::Finished}));
+  EXPECT_EQ(engine.vtable, rasterTable.data() + 1);
+  EXPECT_FALSE(hook->IsDrawing());
 }
 
 TEST_F(HistoryImageHookUnit, OtherPaintEngineRemainsUnchangedAndIsReported) {

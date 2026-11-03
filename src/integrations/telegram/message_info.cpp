@@ -38,15 +38,6 @@ ReadMessageFields(const internal::Message& message) noexcept {
   return process::ReadAt<internal::MessageFields>(*kFieldsAddress);
 }
 
-[[nodiscard]] std::expected<std::uint64_t, std::error_code> ReadPeerId(
-    std::uint64_t peer) noexcept {
-  const auto kIdAddress{FieldAddress(peer, internal::kPeerIdOffset)};
-  if (!kIdAddress) {
-    return std::unexpected{kIdAddress.error()};
-  }
-  return process::ReadAt<std::uint64_t>(*kIdAddress);
-}
-
 [[nodiscard]] std::expected<std::uint64_t, std::error_code> ReadDialogPeerId(
     std::uint64_t history) noexcept {
   const auto kPeerAddress{FieldAddress(history, internal::kHistoryPeerOffset)};
@@ -57,7 +48,7 @@ ReadMessageFields(const internal::Message& message) noexcept {
   if (!kPeer) {
     return std::unexpected{kPeer.error()};
   }
-  return ReadPeerId(*kPeer);
+  return internal::ReadPeerId(*kPeer);
 }
 
 }  // namespace
@@ -72,7 +63,7 @@ std::expected<MessageInfo, std::error_code> MessageInfo::Read(
   if (!kDialogPeerId) {
     return std::unexpected{kDialogPeerId.error()};
   }
-  const auto kFromPeerId{ReadPeerId(kFields->from)};
+  const auto kFromPeerId{internal::ReadPeerId(kFields->from)};
   if (!kFromPeerId) {
     return std::unexpected{kFromPeerId.error()};
   }

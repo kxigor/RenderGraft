@@ -1,5 +1,6 @@
 add_gtest(telegram_unit
   SOURCES
+    avatar_hook_unit.cpp
     history_image_hook_unit.cpp
     message_info_unit.cpp
     message_render_hook_unit.cpp

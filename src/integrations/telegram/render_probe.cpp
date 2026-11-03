@@ -9,6 +9,7 @@
 #include <expected>
 #include <memory>
 #include <new>
+#include <rgf/integrations/telegram/avatar_hook.hpp>
 #include <rgf/integrations/telegram/message_render_hook.hpp>
 #include <rgf/integrations/telegram/raster_marker.hpp>
 #include <rgf/integrations/telegram/render_probe.hpp>
@@ -26,16 +27,49 @@ namespace rgf::integrations::telegram {
 
 namespace {
 
+[[nodiscard]] std::expected<std::unique_ptr<MessageRenderHook>, std::error_code>
+CreateMessageHook(const RenderTarget& target, DWORD guiThread,
+                  MessageSenderFilter filter) {
+  return MessageRenderHook::Create(
+      target.MessageTable(), target.PaintEngine(), target.RasterTable(),
+      guiThread,
+      [filter](const MessageInfo& message, const qt::RasterCanvas& canvas,
+               const qt::internal::RectF& bounds) noexcept {
+        if (!filter.Matches(message)) {
+          return false;
+        }
+        DrawRasterMarker(canvas, bounds);
+        return true;
+      });
+}
+
+[[nodiscard]] std::expected<std::unique_ptr<AvatarHook>, std::error_code>
+CreateAvatarHook(const RenderTarget& target, DWORD guiThread,
+                 MessageSenderFilter filter) {
+  const std::array kHistoryTables{target.HistoryTable(),
+                                  target.TopicHistoryTable()};
+  return AvatarHook::Create(
+      kHistoryTables, target.UserpicPaint(), target.RasterTable(), guiThread,
+      [filter](std::uint64_t owner, const qt::RasterCanvas& canvas,
+               const qt::internal::RectF& bounds) noexcept {
+        if (!filter.Matches(owner)) {
+          return false;
+        }
+        DrawRasterMarker(canvas, bounds);
+        return true;
+      });
+}
+
 class RenderProbe {
  public:
-  RenderProbe(RenderTarget target, HWND window, DWORD guiThread,
-              ReportCallback report,
-              std::unique_ptr<MessageRenderHook> renderHook) noexcept
+  RenderProbe(RenderTarget target, HWND window, ReportCallback report,
+              std::unique_ptr<MessageRenderHook> renderHook,
+              std::unique_ptr<AvatarHook> avatarHook) noexcept
       : kTarget_{target},
         kWindow_{window},
-        kGuiThread_{guiThread},
         kReport_{report},
-        kRenderHook_{std::move(renderHook)} {}
+        kRenderHook_{std::move(renderHook)},
+        kAvatarHook_{std::move(avatarHook)} {}
 
   RenderProbe(const RenderProbe&) = delete;
   RenderProbe& operator=(const RenderProbe&) = delete;
@@ -67,9 +101,9 @@ class RenderProbe {
 
   const RenderTarget kTarget_;
   HWND__* const kWindow_;
-  const DWORD kGuiThread_;
   const ReportCallback kReport_;
   const std::unique_ptr<MessageRenderHook> kRenderHook_;
+  const std::unique_ptr<AvatarHook> kAvatarHook_;
   std::error_code dispatchError_;
   std::error_code hookError_;
   std::error_code repaintError_;
@@ -93,22 +127,17 @@ RenderProbe::Create(MessageSenderFilter filter, ReportCallback report) {
     return std::unexpected{kGuiThread.error()};
   }
   try {
-    auto renderHook{MessageRenderHook::Create(
-        kTarget->MessageTable(), kTarget->PaintEngine(), kTarget->RasterTable(),
-        *kGuiThread,
-        [filter](const MessageInfo& message, const qt::RasterCanvas& canvas,
-                 const qt::internal::RectF& bounds) noexcept {
-          if (filter.Matches(message)) {
-            DrawRasterMarker(canvas, bounds);
-            return true;
-          }
-          return false;
-        })};
+    auto renderHook{CreateMessageHook(*kTarget, *kGuiThread, filter)};
     if (!renderHook) {
       return std::unexpected{renderHook.error()};
     }
-    return std::make_unique<RenderProbe>(*kTarget, *kWindow, *kGuiThread,
-                                         report, std::move(*renderHook));
+    auto avatarHook{CreateAvatarHook(*kTarget, *kGuiThread, filter)};
+    if (!avatarHook) {
+      return std::unexpected{avatarHook.error()};
+    }
+    return std::make_unique<RenderProbe>(*kTarget, *kWindow, report,
+                                         std::move(*renderHook),
+                                         std::move(*avatarHook));
   } catch (const std::bad_alloc&) {
     return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
   }
@@ -174,22 +203,33 @@ std::error_code RenderProbe::Install() noexcept {
     probe.hookError_ = kInstalled.error();
     return {};
   }
+  const auto kAvatarsInstalled{probe.kAvatarHook_->Enable()};
+  if (!kAvatarsInstalled) {
+    probe.hookError_ = kAvatarsInstalled.error();
+    return {};
+  }
   probe.RequestRepaint();
   return {};
 }
 
 std::error_code RenderProbe::Remove() noexcept {
   auto& probe{CurrentDispatch()};
-  if (probe.kRenderHook_->IsDrawing()) {
+  if (probe.kRenderHook_->IsDrawing() || probe.kAvatarHook_->IsDrawing()) {
     return {ERROR_BUSY, std::system_category()};
+  }
+  const auto kAvatarsRemoved{probe.kAvatarHook_->Disable()};
+  if (!kAvatarsRemoved) {
+    probe.hookError_ = kAvatarsRemoved.error();
+    return {};
   }
   const auto kRemoved{probe.kRenderHook_->Disable()};
   if (!kRemoved) {
     probe.hookError_ = kRemoved.error();
-  } else if (!probe.kRenderHook_->CanRelease()) {
+  } else if (!probe.kRenderHook_->CanRelease() ||
+             !probe.kAvatarHook_->CanRelease()) {
     probe.hookError_ = {ERROR_INVALID_THREAD_ID, std::system_category()};
   }
-  if (probe.kRenderHook_->IsDetached()) {
+  if (probe.kRenderHook_->IsDetached() && probe.kAvatarHook_->IsDetached()) {
     probe.RequestRepaint();
   }
   return {};
@@ -205,7 +245,8 @@ void RenderProbe::RequestRepaint() noexcept {
 }
 
 bool RenderProbe::CanRelease() const noexcept {
-  return dispatchCompleted_ && kRenderHook_->CanRelease();
+  return dispatchCompleted_ && kRenderHook_->CanRelease() &&
+         kAvatarHook_->CanRelease();
 }
 
 bool RenderProbe::DispatchCompleted() const noexcept {
@@ -226,19 +267,28 @@ const char* RenderProbe::FailureStep() const noexcept {
 }
 
 void RenderProbe::Report() const noexcept {
-  constexpr std::size_t kReportChars{512};
+  constexpr std::size_t kReportChars{1024};
   std::array<char, kReportChars> text{};
   const auto kMetadataError{kRenderHook_->MetadataError()};
+  const auto kOwnerError{kAvatarHook_->OwnerError()};
+  const auto kPaintError{kAvatarHook_->PaintError()};
   const int kLength{std::snprintf(
       text.data(), text.size(),
-      "render_probe=completed\nprobe_content=sender_message_text_and_images\n"
+      "render_probe=completed\nprobe_content=sender_messages_and_avatars\n"
       "gui_thread_id=%lu\n"
       "message_draw_calls=%llu\nqt_text_calls=%llu\n"
       "qt_image_calls=%llu\nmasked_text_calls=%llu\nmasked_image_calls=%llu\n"
       "message_metadata_failures=%llu\nmessage_metadata_error=%d\n"
-      "message_metadata_error_category=%s\nhooks_removed=true\n"
+      "message_metadata_error_category=%s\n"
+      "avatar_paint_calls=%llu\nhistory_paint_calls=%llu\navatar_image_calls=%"
+      "llu\nmasked_avatar_calls=%"
+      "llu\n"
+      "avatar_owner_failures=%llu\navatar_owner_error=%d\n"
+      "avatar_owner_error_category=%s\navatar_skipped_paints=%llu\n"
+      "avatar_paint_error=%d\navatar_paint_error_category=%s\nhooks_removed="
+      "true\n"
       "repaint_requested=true\ndll_retained=false\n",
-      kGuiThread_,
+      kAvatarHook_->GuiThreadId(),
       static_cast<unsigned long long>(kRenderHook_->MessageCalls()),
       static_cast<unsigned long long>(kRenderHook_->TextCalls()),
       static_cast<unsigned long long>(kRenderHook_->ImageCalls()),
@@ -246,7 +296,16 @@ void RenderProbe::Report() const noexcept {
       static_cast<unsigned long long>(kRenderHook_->MaskedImageCalls()),
       static_cast<unsigned long long>(kRenderHook_->MetadataFailures()),
       kMetadataError.value(),
-      kMetadataError ? kMetadataError.category().name() : "none")};
+      kMetadataError ? kMetadataError.category().name() : "none",
+      static_cast<unsigned long long>(kAvatarHook_->PaintCalls()),
+      static_cast<unsigned long long>(kAvatarHook_->HistoryPaintCalls()),
+      static_cast<unsigned long long>(kAvatarHook_->ImageCalls()),
+      static_cast<unsigned long long>(kAvatarHook_->MaskedCalls()),
+      static_cast<unsigned long long>(kAvatarHook_->OwnerFailures()),
+      kOwnerError.value(), kOwnerError ? kOwnerError.category().name() : "none",
+      static_cast<unsigned long long>(kAvatarHook_->SkippedPaints()),
+      kPaintError.value(),
+      kPaintError ? kPaintError.category().name() : "none")};
   if (kLength > 0 && static_cast<std::size_t>(kLength) < text.size()) {
     kReport_({text.data(), static_cast<std::size_t>(kLength)});
   }
@@ -258,7 +317,10 @@ void RenderProbe::ReportFailure(const std::error_code& error, const char* step,
   std::string text{
       std::string{"render_probe=failed\nstep="} + step +
       "\nreason=" + error.message() + "\nhooks_removed=" +
-      (dispatchCompleted_ && kRenderHook_->IsDetached() ? "true" : "false") +
+      (dispatchCompleted_ && kRenderHook_->IsDetached() &&
+               kAvatarHook_->IsDetached()
+           ? "true"
+           : "false") +
       "\nrepaint_requested=" +
       (dispatchCompleted_ && repaintRequested_ ? "true" : "false") +
       "\ndll_retained=" + (retained ? "true" : "false") + "\n"};
@@ -330,7 +392,7 @@ void RunProbe(std::unique_ptr<RenderProbe> probe, ReportCallback report) {
     }
     report(
         "render_probe=active\n"
-        "probe_content=sender_message_text_and_images\n"
+        "probe_content=sender_messages_and_avatars\n"
         "duration_ms=15000\n");
     constexpr std::chrono::seconds kDuration{15};
     std::this_thread::sleep_for(kDuration);
