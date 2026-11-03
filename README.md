@@ -89,6 +89,8 @@ This context identifies the message whose draw method is running. The filtering 
 
 The probe requests a repaint when starting and stopping, restores the hook, and unloads automatically while Telegram keeps running. Runtime diagnostics, message/text/image draw calls, applied masks, and metadata read failures are written to `rgf_telegram.dll.log` next to the DLL and to the debugger output. Message content and peer IDs are not logged. Hook removal and repaint errors are reported separately: a failed repaint does not prevent unloading after confirmed hook removal. Other builds are rejected before patching; an uncertain cleanup keeps the DLL and callback state alive until process exit and reports the failure.
 
+`rgf::hook::InlineHook` uses [MinHook 1.3.4](https://github.com/TsudaKageyu/minhook/tree/v1.3.4), fetched from a pinned archive with SHA-256 verification and linked statically. Its factory binds a target and detour together and provides the original trampoline immediately. It is a separate primitive from the mutable `Hook::SetDetour` interface. CMake copies the complete upstream license to `MinHook-LICENSE.txt` next to the Telegram DLL and staged launcher.
+
 ## Building the current example
 
 Requirements are MSYS2, a compiler with C++23 support, CMake 3.25+, Ninja, and GoogleTest for tests. Dear ImGui is included as a git submodule:

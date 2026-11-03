@@ -13,6 +13,7 @@ add_library(rgf_hook STATIC
   patch.cpp
   held_patch.cpp
   vmt_hook.cpp
+  inline_hook.cpp
   wnd_proc_hook.cpp
   error.cpp
 )
@@ -28,7 +29,7 @@ target_include_directories(rgf_hook
 
 # ProtectGuard is an implementation detail of the patching itself, so rgf::win
 # is linked privately.
-target_link_libraries(rgf_hook PRIVATE rgf::win)
+target_link_libraries(rgf_hook PRIVATE rgf::win minhook)
 
 if(TARGET project_options)
   target_link_libraries(rgf_hook PRIVATE project_options)

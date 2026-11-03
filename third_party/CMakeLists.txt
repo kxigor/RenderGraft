@@ -45,3 +45,5 @@ target_compile_definitions(imgui PUBLIC IMGUI_IMPL_WIN32_DISABLE_GAMEPAD)
 # d3dcompiler: the D3D11 backend compiles its vertex and pixel shaders at run
 # time. dwmapi: the Win32 backend queries the compositor for frame timing.
 target_link_libraries(imgui PUBLIC d3d11 d3dcompiler dwmapi)
+
+include(minhook.cmake)
