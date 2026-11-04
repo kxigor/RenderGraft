@@ -6,6 +6,6 @@ add_gtest(math_unit
     angle_unit.cpp
     scale_unit.cpp
     projection_unit.cpp
-  LIBRARIES afw::math project_options project_sanitizers project_coverage
+  LIBRARIES rgf::math project_options project_sanitizers project_coverage
   PROPERTIES TIMEOUT 30
 )

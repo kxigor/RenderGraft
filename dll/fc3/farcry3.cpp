@@ -1,35 +1,36 @@
 #include "farcry3.hpp"
 
-#include <afw/abi/abi.hpp>
-#include <afw/app/detour_guard.hpp>
-#include <afw/app/scoped_hooks.hpp>
-#include <afw/config/config.hpp>
-#include <afw/esp/esp.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/hook/vmt_hook.hpp>
-#include <afw/hook/vtable.hpp>
-#include <afw/process/memory.hpp>
 #include <bit>
 #include <cstdint>
+#include <rgf/abi/abi.hpp>
+#include <rgf/app/detour_guard.hpp>
+#include <rgf/app/scoped_hooks.hpp>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/esp.hpp>
+#include <rgf/hook/vmt_hook.hpp>
+#include <rgf/hook/vtable.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
+#include <rgf/process/memory.hpp>
 
 #include "internal.hpp"
 
-namespace afw::dll {
+namespace rgf::dll {
 
 namespace {
 
 constexpr std::uint64_t kStatusInterval{1800};
 
-void AFW_ENGINE_CALL RunAllGroupDetour(void* scheduler) {
+void RGF_ENGINE_CALL RunAllGroupDetour(void* scheduler) {
   const app::DetourGuard kInside{};
 
   if (config::Current().espEnabled.load()) {
-    games::fc3::TakeCensus(std::bit_cast<std::uintptr_t>(scheduler));
+    integrations::fc3::TakeCensus(std::bit_cast<std::uintptr_t>(scheduler));
   }
   ProbeTrace();
   UpdateReach();
 
-  games::fc3::RunAllGroupFn original{games::fc3::OriginalRunAllGroup()};
+  integrations::fc3::RunAllGroupFn original{
+      integrations::fc3::OriginalRunAllGroup()};
   if (original != nullptr) {
     original(scheduler);
   }
@@ -40,9 +41,9 @@ void AFW_ENGINE_CALL RunAllGroupDetour(void* scheduler) {
 const char* FarCry3::Name() const noexcept { return "Far Cry 3"; }
 
 void FarCry3::InstallHooks(app::ScopedHooks& hooks) {
-  hooks.Add<games::fc3::UpdateBinding>(
-      hook::VmtHook::CreateDynamic(hook::Vtable{games::fc3::RunAllGroupSlot()},
-                                   0),
+  hooks.Add<integrations::fc3::UpdateBinding>(
+      hook::VmtHook::Create(hook::Vtable{integrations::fc3::RunAllGroupSlot()},
+                            0),
       &RunAllGroupDetour, "entity update");
 }
 
@@ -51,7 +52,7 @@ void FarCry3::OnFrame() noexcept {
   ++frames;
 
   process::ForgetReadableRegions();
-  games::fc3::PublishCensus();
+  integrations::fc3::PublishCensus();
   SteadyAim();
   RunAssist();
 
@@ -62,4 +63,4 @@ void FarCry3::OnFrame() noexcept {
   esp::DrawFrame();
 }
 
-}  // namespace afw::dll
+}  // namespace rgf::dll

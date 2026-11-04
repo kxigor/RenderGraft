@@ -5,16 +5,16 @@
 #include <imgui_impl_win32.h>
 #include <windows.h>
 
-#include <afw/core/cast.hpp>
-#include <afw/render/dxgi/overlay.hpp>
-#include <afw/render/overlay.hpp>
-#include <afw/win/com_ptr.hpp>
 #include <array>
 #include <bit>
 #include <expected>
+#include <rgf/core/cast.hpp>
+#include <rgf/render/dxgi/overlay.hpp>
+#include <rgf/render/overlay.hpp>
+#include <rgf/win/com_ptr.hpp>
 #include <system_error>
 
-namespace afw::render {
+namespace rgf::render {
 
 namespace {
 
@@ -183,9 +183,9 @@ void ShutdownOverlay() noexcept {
   overlay.window = nullptr;
 }
 
-}  // namespace afw::render
+}  // namespace rgf::render
 
-namespace afw::render::dxgi {
+namespace rgf::render::dxgi {
 
 std::expected<void, std::error_code> DrawOverlayFrame(
     IDXGISwapChain* swapChain, FrameCallback onFrame) noexcept {
@@ -214,4 +214,4 @@ std::expected<void, std::error_code> DrawOverlayFrame(
   return {};
 }
 
-}  // namespace afw::render::dxgi
+}  // namespace rgf::render::dxgi

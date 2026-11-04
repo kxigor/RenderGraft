@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <afw/hook/vtable.hpp>
 #include <array>
 #include <bit>
 #include <cstddef>
 #include <cstdint>
+#include <rgf/hook/vtable.hpp>
 
 namespace {
 
@@ -19,8 +19,8 @@ class VtableUnit : public ::testing::Test {
     }
   }
 
-  [[nodiscard]] afw::hook::Vtable Table() {
-    return afw::hook::Vtable{entries_.data()};
+  [[nodiscard]] rgf::hook::Vtable Table() {
+    return rgf::hook::Vtable{entries_.data()};
   }
 
   std::array<void*, kEntries> entries_{};
@@ -45,7 +45,7 @@ TEST_F(VtableUnit, AtReturnsTheValueOfTheEntry) {
 }
 
 TEST_F(VtableUnit, AtAgreesWithSlot) {
-  const afw::hook::Vtable kTable{Table()};
+  const rgf::hook::Vtable kTable{Table()};
 
   for (std::size_t i{0}; i < kEntries; ++i) {
     EXPECT_EQ(kTable.At(i), *kTable.Slot(i)) << "slot " << i;
@@ -53,7 +53,7 @@ TEST_F(VtableUnit, AtAgreesWithSlot) {
 }
 
 TEST_F(VtableUnit, AdjacentSlotsAreOnePointerApart) {
-  const afw::hook::Vtable kTable{Table()};
+  const rgf::hook::Vtable kTable{Table()};
 
   const std::uintptr_t kFirst{std::bit_cast<std::uintptr_t>(kTable.Slot(0))};
   const std::uintptr_t kSecond{std::bit_cast<std::uintptr_t>(kTable.Slot(1))};

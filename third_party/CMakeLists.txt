@@ -12,30 +12,30 @@
 # surface in the translation units that include it. FormatCheck and TidyCheck
 # never see any of this -- their globs only reach src/, include/ and dll/.
 
-set(AFW_IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
+set(RGF_IMGUI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/imgui")
 
-if(NOT EXISTS "${AFW_IMGUI_DIR}/imgui.cpp")
+if(NOT EXISTS "${RGF_IMGUI_DIR}/imgui.cpp")
   message(FATAL_ERROR
     "third_party/imgui is empty: the submodule has not been checked out.\n"
     "  git submodule update --init --recursive")
 endif()
 
 add_library(imgui STATIC
-  ${AFW_IMGUI_DIR}/imgui.cpp
-  ${AFW_IMGUI_DIR}/imgui_draw.cpp
-  ${AFW_IMGUI_DIR}/imgui_tables.cpp
-  ${AFW_IMGUI_DIR}/imgui_widgets.cpp
-  ${AFW_IMGUI_DIR}/imgui_demo.cpp
-  ${AFW_IMGUI_DIR}/backends/imgui_impl_win32.cpp
-  ${AFW_IMGUI_DIR}/backends/imgui_impl_dx11.cpp
+  ${RGF_IMGUI_DIR}/imgui.cpp
+  ${RGF_IMGUI_DIR}/imgui_draw.cpp
+  ${RGF_IMGUI_DIR}/imgui_tables.cpp
+  ${RGF_IMGUI_DIR}/imgui_widgets.cpp
+  ${RGF_IMGUI_DIR}/imgui_demo.cpp
+  ${RGF_IMGUI_DIR}/backends/imgui_impl_win32.cpp
+  ${RGF_IMGUI_DIR}/backends/imgui_impl_dx11.cpp
 )
-add_library(afw::imgui ALIAS imgui)
+add_library(rgf::imgui ALIAS imgui)
 
 target_compile_features(imgui PUBLIC cxx_std_23)
 
 target_include_directories(imgui SYSTEM PUBLIC
-  $<BUILD_INTERFACE:${AFW_IMGUI_DIR}>
-  $<BUILD_INTERFACE:${AFW_IMGUI_DIR}/backends>
+  $<BUILD_INTERFACE:${RGF_IMGUI_DIR}>
+  $<BUILD_INTERFACE:${RGF_IMGUI_DIR}/backends>
 )
 
 # The Win32 backend polls gamepads through XInput. The overlay has no use for

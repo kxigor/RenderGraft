@@ -2,19 +2,19 @@
 #include <dxgi.h>
 #include <windows.h>
 
-#include <afw/core/cast.hpp>
-#include <afw/hook/vtable.hpp>
-#include <afw/render/dxgi/probe.hpp>
-#include <afw/win/error.hpp>
 #include <bit>
 #include <expected>
+#include <rgf/core/cast.hpp>
+#include <rgf/hook/vtable.hpp>
+#include <rgf/render/dxgi/probe.hpp>
+#include <rgf/win/error.hpp>
 #include <system_error>
 
-namespace afw::render::dxgi {
+namespace rgf::render::dxgi {
 
 namespace {
 
-constexpr PCWSTR kProbeClassName{L"afw_swap_chain_probe"};
+constexpr PCWSTR kProbeClassName{L"rgf_swap_chain_probe"};
 constexpr UINT kProbeExtent{1};
 
 [[nodiscard]] std::expected<HWND, std::error_code> CreateProbeWindow(
@@ -127,4 +127,4 @@ std::expected<hook::Vtable, std::error_code> ProbeSwapChainVtable() noexcept {
   return kVtable;
 }
 
-}  // namespace afw::render::dxgi
+}  // namespace rgf::render::dxgi

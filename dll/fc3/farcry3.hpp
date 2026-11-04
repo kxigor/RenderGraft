@@ -1,9 +1,9 @@
 #pragma once
 
-#include <afw/app/game.hpp>
-#include <afw/app/scoped_hooks.hpp>
+#include <rgf/app/game.hpp>
+#include <rgf/app/scoped_hooks.hpp>
 
-namespace afw::dll {
+namespace rgf::dll {
 
 class FarCry3 final : public app::Game {
  public:
@@ -14,4 +14,4 @@ class FarCry3 final : public app::Game {
   void OnFrame() noexcept override;
 };
 
-}  // namespace afw::dll
+}  // namespace rgf::dll

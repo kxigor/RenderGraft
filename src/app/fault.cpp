@@ -1,14 +1,14 @@
 #include <windows.h>
 
-#include <afw/app/fault.hpp>
-#include <afw/app/log.hpp>
-#include <afw/core/cast.hpp>
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <rgf/app/fault.hpp>
+#include <rgf/app/log.hpp>
+#include <rgf/core/cast.hpp>
 #include <tuple>
 
-namespace afw::app {
+namespace rgf::app {
 
 namespace {
 
@@ -32,14 +32,14 @@ void LogOrigin(const void* address) {
           /*hModule    = */ module,
           /*lpFilename = */ path.data(),
           /*nSize      = */ static_cast<DWORD>(MAX_PATH)) == 0) {
-    Log("[aimbot] fault in no known module\n");
+    Log("[rgf] fault in no known module\n");
     return;
   }
 
   const std::uintptr_t kBase{core::PointerCast<std::uintptr_t>(module)};
   const std::uintptr_t kOffset{core::PointerCast<std::uintptr_t>(address) -
                                kBase};
-  Logf("[aimbot] fault in %ls + %llX\n", path.data(),
+  Logf("[rgf] fault in %ls + %llX\n", path.data(),
        static_cast<std::uint64_t>(kOffset));
 }
 
@@ -49,7 +49,7 @@ void LogAccess(const EXCEPTION_RECORD& record) {
     return;
   }
 
-  Logf("[aimbot] %s at %llX\n",
+  Logf("[rgf] %s at %llX\n",
        record.ExceptionInformation[0] == kWriteFlag ? "writing" : "reading",
        static_cast<std::uint64_t>(record.ExceptionInformation[1]));
 }
@@ -58,7 +58,7 @@ LONG WINAPI OnFault(EXCEPTION_POINTERS* pointers) {
   if (pointers != nullptr && pointers->ExceptionRecord != nullptr) {
     const EXCEPTION_RECORD& kRecord{*pointers->ExceptionRecord};
 
-    Logf("[aimbot] unhandled exception %lX at %llX\n", kRecord.ExceptionCode,
+    Logf("[rgf] unhandled exception %lX at %llX\n", kRecord.ExceptionCode,
          static_cast<std::uint64_t>(
              core::PointerCast<std::uintptr_t>(kRecord.ExceptionAddress)));
 
@@ -87,4 +87,4 @@ FaultLogger::~FaultLogger() {
   PreviousFilter() = nullptr;
 }
 
-}  // namespace afw::app
+}  // namespace rgf::app

@@ -25,7 +25,7 @@ set(TIDY_CONFIG "${PROJECT_SOURCE_DIR}/.clang-tidy")
 # ========================================
 # 3.1 Format TEST (Python-driven; no bash dependency)
 # ========================================
-if(AFW_ENABLE_FORMAT_CHECK)
+if(RGF_ENABLE_FORMAT_CHECK)
   add_test(
     NAME FormatCheck
     COMMAND ${Python3_EXECUTABLE} ${SCRIPTS_DIR}/check_format.py
@@ -38,7 +38,7 @@ endif()
 # ========================================
 # 3.2 Tidy TEST
 # ========================================
-if(AFW_ENABLE_TIDY_CHECK)
+if(RGF_ENABLE_TIDY_CHECK)
   add_test(
     NAME TidyCheck
     COMMAND ${Python3_EXECUTABLE} ${SCRIPTS_DIR}/check_tidy.py

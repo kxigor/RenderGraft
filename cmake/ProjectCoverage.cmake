@@ -4,7 +4,7 @@
 # 1. CODE COVERAGE ARCHITECTURE SETUP
 # ========================================
 # Creates the 'project_coverage' INTERFACE library that applies gcov
-# instrumentation only when AFW_ENABLE_COVERAGE is ON (a no-op otherwise).
+# instrumentation only when RGF_ENABLE_COVERAGE is ON (a no-op otherwise).
 #
 # Portability note: gcov itself ships with MinGW GCC and works on Windows /
 # MSYS2. The *reporting* tools do not always: lcov/genhtml and their Unix path
@@ -17,10 +17,10 @@ include_guard()
 
 add_library(project_coverage INTERFACE)
 
-if(AFW_ENABLE_COVERAGE)
+if(RGF_ENABLE_COVERAGE)
   # gcov coverage is a GCC/Clang feature only.
   if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    message(WARNING "AFW_ENABLE_COVERAGE=ON but compiler '${CMAKE_CXX_COMPILER_ID}' has no gcov support. Coverage disabled.")
+    message(WARNING "RGF_ENABLE_COVERAGE=ON but compiler '${CMAKE_CXX_COMPILER_ID}' has no gcov support. Coverage disabled.")
     return()
   endif()
 

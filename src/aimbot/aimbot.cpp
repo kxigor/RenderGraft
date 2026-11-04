@@ -1,13 +1,13 @@
-#include <afw/aimbot/aimbot.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/math/direction.hpp>
-#include <afw/math/ray.hpp>
-#include <afw/math/vec3.hpp>
 #include <optional>
+#include <rgf/aimbot/aimbot.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
+#include <rgf/math/direction.hpp>
+#include <rgf/math/ray.hpp>
+#include <rgf/math/vec3.hpp>
 
-namespace afw::aimbot {
+namespace rgf::aimbot {
 
-math::Vec3 AimPoint(const games::fc3::EntityInfo& entity) noexcept {
+math::Vec3 AimPoint(const integrations::fc3::EntityInfo& entity) noexcept {
   if (entity.head) {
     return *entity.head;
   }
@@ -18,10 +18,10 @@ math::Vec3 AimPoint(const games::fc3::EntityInfo& entity) noexcept {
   return entity.transform.TransformPoint(entity.box.Centre());
 }
 
-std::optional<Target> CandidateOf(const games::fc3::EntityInfo& entity,
-                                  const math::Ray& view, const Choice& choice,
-                                  RankFn rank,
-                                  const games::fc3::PawnInfo* self) noexcept {
+std::optional<Target> CandidateOf(
+    const integrations::fc3::EntityInfo& entity, const math::Ray& view,
+    const Choice& choice, RankFn rank,
+    const integrations::fc3::PawnInfo* self) noexcept {
   const std::optional<Ranking> kRanking{rank(entity, self)};
   if (!kRanking) {
     return std::nullopt;
@@ -46,14 +46,15 @@ std::optional<Target> CandidateOf(const games::fc3::EntityInfo& entity,
                 /*ranking  = */ *kRanking};
 }
 
-std::optional<Target> ChooseTarget(const games::fc3::EntitySnapshot& snapshot,
-                                   const math::Ray& view, const Choice& choice,
-                                   RankFn rank,
-                                   const games::fc3::PawnInfo* self) noexcept {
+std::optional<Target> ChooseTarget(
+    const integrations::fc3::EntitySnapshot& snapshot, const math::Ray& view,
+    const Choice& choice, RankFn rank,
+    const integrations::fc3::PawnInfo* self) noexcept {
   std::optional<Target> best;
   float bestScore{};
 
-  for (const games::fc3::EntityInfo& kEntity : games::fc3::Entities(snapshot)) {
+  for (const integrations::fc3::EntityInfo& kEntity :
+       integrations::fc3::Entities(snapshot)) {
     const std::optional<Target> kCandidate{
         CandidateOf(kEntity, view, choice, rank, self)};
     if (!kCandidate) {
@@ -72,4 +73,4 @@ std::optional<Target> ChooseTarget(const games::fc3::EntitySnapshot& snapshot,
   return best;
 }
 
-}  // namespace afw::aimbot
+}  // namespace rgf::aimbot

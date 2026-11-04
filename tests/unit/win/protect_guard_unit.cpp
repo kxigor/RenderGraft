@@ -1,8 +1,8 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/win/protect_guard.hpp>
 #include <expected>
+#include <rgf/win/protect_guard.hpp>
 #include <support/win_probe.hpp>
 #include <system_error>
 
@@ -19,7 +19,7 @@ class ProtectGuardUnit : public ::testing::Test {
         /*flAllocationType = */ MEM_COMMIT | MEM_RESERVE,
         /*flProtect        = */ PAGE_READONLY);
     ASSERT_NE(page_, nullptr);
-    ASSERT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+    ASSERT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                                PAGE_READONLY));
   }
 
@@ -38,43 +38,43 @@ class ProtectGuardUnit : public ::testing::Test {
 }  // namespace
 
 TEST_F(ProtectGuardUnit, CreateRelaxesTheProtection) {
-  const std::expected<afw::win::ProtectGuard, std::error_code> kGuard{
-      afw::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
+  const std::expected<rgf::win::ProtectGuard, std::error_code> kGuard{
+      rgf::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
                                      PAGE_READWRITE)};
 
   ASSERT_TRUE(kGuard.has_value()) << kGuard.error().message();
-  EXPECT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+  EXPECT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                              PAGE_READWRITE));
 }
 
 TEST_F(ProtectGuardUnit, DestructorRestoresTheProtection) {
   {
-    const std::expected<afw::win::ProtectGuard, std::error_code> kGuard{
-        afw::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
+    const std::expected<rgf::win::ProtectGuard, std::error_code> kGuard{
+        rgf::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
                                        PAGE_READWRITE)};
     ASSERT_TRUE(kGuard.has_value()) << kGuard.error().message();
   }
 
-  EXPECT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+  EXPECT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                              PAGE_READONLY));
 }
 
 TEST_F(ProtectGuardUnit, RestoreReportsSuccessAndPutsTheProtectionBack) {
-  std::expected<afw::win::ProtectGuard, std::error_code> guard{
-      afw::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
+  std::expected<rgf::win::ProtectGuard, std::error_code> guard{
+      rgf::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
                                      PAGE_READWRITE)};
   ASSERT_TRUE(guard.has_value()) << guard.error().message();
 
   const std::expected<void, std::error_code> kRestored{guard->Restore()};
 
   EXPECT_TRUE(kRestored.has_value()) << kRestored.error().message();
-  EXPECT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+  EXPECT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                              PAGE_READONLY));
 }
 
 TEST_F(ProtectGuardUnit, RestoreIsIdempotent) {
-  std::expected<afw::win::ProtectGuard, std::error_code> guard{
-      afw::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
+  std::expected<rgf::win::ProtectGuard, std::error_code> guard{
+      rgf::win::ProtectGuard::Create(GetCurrentProcess(), page_, kProbeSize,
                                      PAGE_READWRITE)};
   ASSERT_TRUE(guard.has_value()) << guard.error().message();
   ASSERT_TRUE(guard->Restore().has_value());
@@ -90,7 +90,7 @@ TEST_F(ProtectGuardUnit, RestoreIsIdempotent) {
 
   EXPECT_TRUE(guard->Restore().has_value());
   EXPECT_TRUE(
-      afw::test::RegionHasProtection(GetCurrentProcess(), page_, kTightened));
+      rgf::test::RegionHasProtection(GetCurrentProcess(), page_, kTightened));
 }
 
 TEST_F(ProtectGuardUnit, AdoptRestoresOnDestruction) {
@@ -103,13 +103,13 @@ TEST_F(ProtectGuardUnit, AdoptRestoresOnDestruction) {
             FALSE);
 
   {
-    const afw::win::ProtectGuard kGuard{afw::win::ProtectGuard::Adopt(
+    const rgf::win::ProtectGuard kGuard{rgf::win::ProtectGuard::Adopt(
         GetCurrentProcess(), page_, kProbeSize, previous)};
-    EXPECT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+    EXPECT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                                PAGE_READWRITE));
   }
 
-  EXPECT_TRUE(afw::test::RegionHasProtection(GetCurrentProcess(), page_,
+  EXPECT_TRUE(rgf::test::RegionHasProtection(GetCurrentProcess(), page_,
                                              PAGE_READONLY));
 }
 
@@ -126,8 +126,8 @@ TEST_F(ProtectGuardUnit, CreateReportsTheWin32ErrorForAnUnmappedAddress) {
                 /*dwFreeType = */ MEM_RELEASE),
             FALSE);
 
-  const std::expected<afw::win::ProtectGuard, std::error_code> kGuard{
-      afw::win::ProtectGuard::Create(GetCurrentProcess(), kUnmapped, kProbeSize,
+  const std::expected<rgf::win::ProtectGuard, std::error_code> kGuard{
+      rgf::win::ProtectGuard::Create(GetCurrentProcess(), kUnmapped, kProbeSize,
                                      PAGE_READWRITE)};
 
   ASSERT_FALSE(kGuard.has_value());

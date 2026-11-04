@@ -1,13 +1,13 @@
 #include <windows.h>
 
-#include <afw/win/error.hpp>
-#include <afw/win/protect_guard.hpp>
 #include <expected>
+#include <rgf/win/error.hpp>
+#include <rgf/win/protect_guard.hpp>
 #include <system_error>
 #include <tuple>
 #include <utility>
 
-namespace afw::win {
+namespace rgf::win {
 
 std::expected<ProtectGuard, std::error_code> ProtectGuard::Create(
     HANDLE proc, LPVOID addr, SIZE_T size, DWORD newProtect) noexcept {
@@ -59,4 +59,4 @@ std::expected<void, std::error_code> ProtectGuard::Restore() noexcept {
   return {};
 }
 
-}  // namespace afw::win
+}  // namespace rgf::win

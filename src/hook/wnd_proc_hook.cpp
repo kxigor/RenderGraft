@@ -1,16 +1,16 @@
 #include <windows.h>
 
-#include <afw/hook/error.hpp>
-#include <afw/hook/wnd_proc_hook.hpp>
-#include <afw/win/error.hpp>
 #include <bit>
 #include <expected>
 #include <memory>
 #include <new>
+#include <rgf/hook/error.hpp>
+#include <rgf/hook/wnd_proc_hook.hpp>
+#include <rgf/win/error.hpp>
 #include <system_error>
 #include <tuple>
 
-namespace afw::hook {
+namespace rgf::hook {
 
 namespace {
 
@@ -124,4 +124,4 @@ std::expected<void, std::error_code> WndProcHook::Swap(void* value) noexcept {
   return {};
 }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook

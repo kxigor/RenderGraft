@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
 
-#include <afw/math/scale.hpp>
+#include <rgf/math/scale.hpp>
 
 namespace {
 
-using afw::math::Nearness;
+using rgf::math::Nearness;
 
 // The score adds an angle in radians to a distance in metres, which only means
 // anything once both are on the same scale. Nearness is what puts them there:

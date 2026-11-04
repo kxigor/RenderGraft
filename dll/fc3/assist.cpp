@@ -1,19 +1,19 @@
 #include <windows.h>
 
-#include <afw/aimbot/aimbot.hpp>
-#include <afw/config/config.hpp>
-#include <afw/games/fc3/fc3.hpp>
-#include <afw/math/angle.hpp>
-#include <afw/math/vec3.hpp>
 #include <cmath>
 #include <cstdint>
 #include <expected>
 #include <optional>
+#include <rgf/aimbot/aimbot.hpp>
+#include <rgf/config/config.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
+#include <rgf/math/angle.hpp>
+#include <rgf/math/vec3.hpp>
 #include <system_error>
 
 #include "internal.hpp"
 
-namespace afw::dll {
+namespace rgf::dll {
 
 namespace {
 
@@ -58,20 +58,20 @@ void HoldFire(bool wanted) noexcept {
 
 [[nodiscard]] std::optional<float> AimAt(
     std::uintptr_t state, const math::Vec3& point,
-    const games::fc3::CameraBasis& camera) noexcept {
+    const integrations::fc3::CameraBasis& camera) noexcept {
   const std::optional<math::ViewAngles> kCurrent{
-      games::fc3::ReadViewAngles(state)};
+      integrations::fc3::ReadViewAngles(state)};
   if (!kCurrent) {
     return std::nullopt;
   }
 
   const math::ViewAngles kWanted{
-      games::fc3::ViewAnglesTo(point - camera.position)};
+      integrations::fc3::ViewAnglesTo(point - camera.position)};
   const math::ViewAngles kLeft{math::Difference(*kCurrent, kWanted)};
   const math::ViewAngles kStep{
       math::Share(kLeft, config::Current().aimSmoothing.load())};
 
-  games::fc3::WriteViewAngles(
+  integrations::fc3::WriteViewAngles(
       state, math::ViewAngles{.yaw = math::WrapAngle(kCurrent->yaw + kStep.yaw),
                               .pitch = kCurrent->pitch + kStep.pitch});
 
@@ -87,14 +87,15 @@ void RunAssist() noexcept {
     return;
   }
 
-  const std::expected<games::fc3::CameraBasis, std::error_code> kCamera{
-      games::fc3::ReadCamera()};
+  const std::expected<integrations::fc3::CameraBasis, std::error_code> kCamera{
+      integrations::fc3::ReadCamera()};
   if (!kCamera) {
     HoldFire(false);
     return;
   }
 
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
   const std::uintptr_t kState{CameraState(kSnapshot, kCamera->forward)};
   const std::optional<aimbot::Target> kTarget{Pick(kSnapshot, *kCamera)};
   if (kState == 0 || !kTarget) {
@@ -108,4 +109,4 @@ void RunAssist() noexcept {
            *kRest <= math::HalfAngle(kSettings.autoFireCone.load()));
 }
 
-}  // namespace afw::dll
+}  // namespace rgf::dll

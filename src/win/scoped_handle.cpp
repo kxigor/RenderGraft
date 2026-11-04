@@ -1,8 +1,8 @@
 #include <windows.h>
 
-#include <afw/win/scoped_handle.hpp>
+#include <rgf/win/scoped_handle.hpp>
 
-namespace afw::win {
+namespace rgf::win {
 
 ScopedHandle::ScopedHandle(HANDLE handle) : handle_{handle} {}
 
@@ -41,4 +41,4 @@ void ScopedHandle::Reset(HANDLE handle) {
   handle_ = handle;
 }
 
-}  // namespace afw::win
+}  // namespace rgf::win

@@ -1,12 +1,12 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/process/reader.hpp>
 #include <array>
 #include <bit>
 #include <cstdint>
 #include <cstring>
 #include <optional>
+#include <rgf/process/reader.hpp>
 
 namespace {
 
@@ -14,8 +14,8 @@ namespace {
 // stores are four bytes wide however wide this build's uintptr_t is. The fake
 // therefore has to live where a 32-bit value can address it, which a plain
 // allocation on a 64-bit test run would not.
-using Engine = afw::process::Reader<std::uint32_t>;
-using EngineArray = afw::process::PointerArray<std::uint32_t>;
+using Engine = rgf::process::Reader<std::uint32_t>;
+using EngineArray = rgf::process::PointerArray<std::uint32_t>;
 
 constexpr SIZE_T kBufferBytes{4096};
 constexpr std::array<std::uintptr_t, 3> kPreferredBases{0x50000000, 0x60000000,

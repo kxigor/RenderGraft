@@ -1,30 +1,28 @@
 #include <windows.h>
 
-#include <afw/app/app.hpp>
-#include <afw/app/detour_guard.hpp>
-#include <afw/app/fault.hpp>
-#include <afw/app/game.hpp>
-#include <afw/app/log.hpp>
-#include <afw/app/module.hpp>
-#include <afw/app/scoped_hooks.hpp>
-#include <afw/config/config.hpp>
-#include <afw/hook/hook.hpp>
-#include <afw/hook/vmt_hook.hpp>
-#include <afw/hook/vtable.hpp>
-#include <afw/hook/wnd_proc_hook.hpp>
-#include <afw/menu/menu.hpp>
-#include <afw/render/dxgi/overlay.hpp>
-#include <afw/render/dxgi/present_hook.hpp>
-#include <afw/render/dxgi/probe.hpp>
-#include <afw/render/overlay.hpp>
-#include <afw/win/scoped_handle.hpp>
-#include <array>
 #include <atomic>
-#include <cstddef>
+#include <exception>
 #include <expected>
+#include <rgf/app/app.hpp>
+#include <rgf/app/detour_guard.hpp>
+#include <rgf/app/fault.hpp>
+#include <rgf/app/game.hpp>
+#include <rgf/app/log.hpp>
+#include <rgf/app/scoped_hooks.hpp>
+#include <rgf/config/config.hpp>
+#include <rgf/hook/hook.hpp>
+#include <rgf/hook/vmt_hook.hpp>
+#include <rgf/hook/vtable.hpp>
+#include <rgf/hook/wnd_proc_hook.hpp>
+#include <rgf/menu/menu.hpp>
+#include <rgf/render/dxgi/overlay.hpp>
+#include <rgf/render/dxgi/present_hook.hpp>
+#include <rgf/render/dxgi/probe.hpp>
+#include <rgf/render/overlay.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <system_error>
 
-namespace afw::app {
+namespace rgf::app {
 
 namespace {
 
@@ -124,21 +122,21 @@ HRESULT __stdcall PresentDetour(IDXGISwapChain* swapChain, UINT syncInterval,
 }
 
 void LogAttached(const Game& game) {
-  Logf("[aimbot] attached to %s\n", game.Name());
+  Logf("[rgf] attached to %s\n", game.Name());
 }
 
 void LogTable(const hook::Vtable& table) {
-  Logf("[aimbot] vtable at %p, Present at %p\n",
+  Logf("[rgf] vtable at %p, Present at %p\n",
        static_cast<const void*>(table.Get()),
        table.At(render::dxgi::kPresentSlot));
 }
 
 void RunUntilUnload() {
-  Log("[aimbot] running\n");
+  Log("[rgf] running\n");
   WaitForSingleObject(
       /*hHandle        = */ UnloadEvent(),
       /*dwMilliseconds = */ INFINITE);
-  Log("[aimbot] unload requested\n");
+  Log("[rgf] unload requested\n");
 }
 
 [[nodiscard]] HWND WaitForOverlayWindow() noexcept {
@@ -157,7 +155,7 @@ void RunUntilUnload() {
 void AddInputHook(ScopedHooks& hooks) {
   HWND window{WaitForOverlayWindow()};
   if (window == nullptr) {
-    Log("[aimbot] no overlay window, input not hooked\n");
+    Log("[rgf] no overlay window, input not hooked\n");
     return;
   }
 
@@ -176,7 +174,7 @@ void RunSession(Game& game) {
 
   ScopedHooks hooks;
   if (!hooks.Add<render::dxgi::PresentBinding>(
-          hook::VmtHook::CreateDynamic(*kTable, render::dxgi::kPresentSlot),
+          hook::VmtHook::Create(*kTable, render::dxgi::kPresentSlot),
           &PresentDetour, "Present")) {
     return;
   }
@@ -195,23 +193,19 @@ void Run(Game& game) noexcept {
 
   {
     const FaultLogger kFaults{};
-    RunSession(game);
+    try {
+      RunSession(game);
+    } catch (const std::exception& error) {
+      Logf("[rgf] session failed: %s\n", error.what());
+    } catch (...) {
+      Log("[rgf] session failed with an unknown exception\n");
+    }
   }
 
   WaitForDetours();
   CurrentGame().store(nullptr);
   render::ShutdownOverlay();
-  Log("[aimbot] unloaded\n");
-
-  const HMODULE kSelf{SelfModule()};
-  if (kSelf != nullptr) {
-    FreeLibraryAndExitThread(
-        /*hLibModule = */ kSelf,
-        /*dwExitCode = */ 0);
-  }
-
-  ExitThread(
-      /*dwExitCode = */ 0);
+  Log("[rgf] session stopped\n");
 }
 
-}  // namespace afw::app
+}  // namespace rgf::app

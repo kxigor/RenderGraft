@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/win/remote_memory.hpp>
+#include <rgf/win/remote_memory.hpp>
 #include <support/win_probe.hpp>
 #include <utility>
 
@@ -41,7 +41,7 @@ class RemoteMemoryUnit : public ::testing::Test {
 }  // namespace
 
 TEST_F(RemoteMemoryUnit, DefaultConstructedOwnsNothing) {
-  const afw::win::RemoteMemory kMem{};
+  const rgf::win::RemoteMemory kMem{};
 
   EXPECT_EQ(kMem.Get(), nullptr);
   EXPECT_FALSE(static_cast<bool>(kMem));
@@ -52,13 +52,13 @@ TEST_F(RemoteMemoryUnit, DestructorReleasesTheAllocation) {
   ASSERT_NE(kAddr, nullptr);
 
   {
-    const afw::win::RemoteMemory kMem{proc_, kAddr};
+    const rgf::win::RemoteMemory kMem{proc_, kAddr};
     EXPECT_TRUE(static_cast<bool>(kMem));
     EXPECT_EQ(kMem.Get(), kAddr);
-    EXPECT_TRUE(afw::test::RegionIsCommitted(proc_, kAddr));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(proc_, kAddr));
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(proc_, kAddr));
+  EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kAddr));
 }
 
 TEST_F(RemoteMemoryUnit, ReleaseKeepsTheAllocationAlive) {
@@ -66,14 +66,14 @@ TEST_F(RemoteMemoryUnit, ReleaseKeepsTheAllocationAlive) {
   ASSERT_NE(kAddr, nullptr);
 
   {
-    afw::win::RemoteMemory mem{proc_, kAddr};
+    rgf::win::RemoteMemory mem{proc_, kAddr};
 
     EXPECT_EQ(mem.Release(), kAddr);
     EXPECT_FALSE(static_cast<bool>(mem));
     EXPECT_EQ(mem.Get(), nullptr);
   }
 
-  EXPECT_TRUE(afw::test::RegionIsCommitted(proc_, kAddr));
+  EXPECT_TRUE(rgf::test::RegionIsCommitted(proc_, kAddr));
   EXPECT_NE(VirtualFreeEx(
                 /*hProcess   = */ proc_,
                 /*lpAddress  = */ kAddr,
@@ -87,16 +87,16 @@ TEST_F(RemoteMemoryUnit, MoveConstructionTransfersOwnership) {
   ASSERT_NE(kAddr, nullptr);
 
   {
-    afw::win::RemoteMemory src{proc_, kAddr};
-    const afw::win::RemoteMemory kDst{std::move(src)};
+    rgf::win::RemoteMemory src{proc_, kAddr};
+    const rgf::win::RemoteMemory kDst{std::move(src)};
 
     EXPECT_EQ(kDst.Get(), kAddr);
     EXPECT_FALSE(static_cast<bool>(src));
     EXPECT_EQ(src.Get(), nullptr);
-    EXPECT_TRUE(afw::test::RegionIsCommitted(proc_, kAddr));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(proc_, kAddr));
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(proc_, kAddr));
+  EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kAddr));
 }
 
 TEST_F(RemoteMemoryUnit, MoveAssignmentReleasesTheReplacedAllocation) {
@@ -107,18 +107,18 @@ TEST_F(RemoteMemoryUnit, MoveAssignmentReleasesTheReplacedAllocation) {
   ASSERT_NE(kOld, kNew);
 
   {
-    afw::win::RemoteMemory dst{proc_, kOld};
-    afw::win::RemoteMemory src{proc_, kNew};
+    rgf::win::RemoteMemory dst{proc_, kOld};
+    rgf::win::RemoteMemory src{proc_, kNew};
     dst = std::move(src);
 
-    EXPECT_TRUE(afw::test::RegionIsFree(proc_, kOld));
-    EXPECT_TRUE(afw::test::RegionIsCommitted(proc_, kNew));
+    EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kOld));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(proc_, kNew));
     EXPECT_EQ(dst.Get(), kNew);
     EXPECT_FALSE(static_cast<bool>(src));
     EXPECT_EQ(src.Get(), nullptr);
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(proc_, kNew));
+  EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kNew));
 }
 
 TEST_F(RemoteMemoryUnit, ResetWithTheSameAddressDoesNotFree) {
@@ -126,14 +126,14 @@ TEST_F(RemoteMemoryUnit, ResetWithTheSameAddressDoesNotFree) {
   ASSERT_NE(kAddr, nullptr);
 
   {
-    afw::win::RemoteMemory mem{proc_, kAddr};
+    rgf::win::RemoteMemory mem{proc_, kAddr};
     mem.Reset(proc_, kAddr);
 
-    EXPECT_TRUE(afw::test::RegionIsCommitted(proc_, kAddr));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(proc_, kAddr));
     EXPECT_EQ(mem.Get(), kAddr);
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(proc_, kAddr));
+  EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kAddr));
 }
 
 TEST_F(RemoteMemoryUnit, ResetReleasesTheOldAllocation) {
@@ -144,13 +144,13 @@ TEST_F(RemoteMemoryUnit, ResetReleasesTheOldAllocation) {
   ASSERT_NE(kOld, kNew);
 
   {
-    afw::win::RemoteMemory mem{proc_, kOld};
+    rgf::win::RemoteMemory mem{proc_, kOld};
     mem.Reset(proc_, kNew);
 
-    EXPECT_TRUE(afw::test::RegionIsFree(proc_, kOld));
-    EXPECT_TRUE(afw::test::RegionIsCommitted(proc_, kNew));
+    EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kOld));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(proc_, kNew));
     EXPECT_EQ(mem.Get(), kNew);
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(proc_, kNew));
+  EXPECT_TRUE(rgf::test::RegionIsFree(proc_, kNew));
 }

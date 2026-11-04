@@ -1,9 +1,9 @@
 #include <windows.h>
 
-#include <afw/app/module.hpp>
-#include <afw/core/cast.hpp>
+#include <rgf/app/module.hpp>
+#include <rgf/core/cast.hpp>
 
-namespace afw::app {
+namespace rgf::app {
 
 HMODULE SelfModule() noexcept {
   HMODULE module{nullptr};
@@ -18,4 +18,4 @@ HMODULE SelfModule() noexcept {
   return module;
 }
 
-}  // namespace afw::app
+}  // namespace rgf::app

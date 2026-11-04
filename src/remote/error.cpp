@@ -1,11 +1,11 @@
-#include <afw/core/error.hpp>
-#include <afw/remote/error.hpp>
+#include <rgf/core/error.hpp>
+#include <rgf/remote/error.hpp>
 #include <string>
 #include <system_error>
 
-namespace afw::remote {
+namespace rgf::remote {
 
-const char* CategoryName(Error /*tag*/) { return "afw::remote"; }
+const char* CategoryName(Error /*tag*/) { return "rgf::remote"; }
 
 std::string Describe(Error error) {
   switch (error) {
@@ -16,7 +16,7 @@ std::string Describe(Error error) {
     case Error::RemoteThreadTimeout:
       return "the remote thread did not finish within the timeout";
     default:
-      return "unknown afw::remote error";
+      return "unknown rgf::remote error";
   }
 }
 
@@ -27,4 +27,4 @@ std::error_code make_error_code(Error error) {
   return core::MakeErrorCode(error);
 }
 
-}  // namespace afw::remote
+}  // namespace rgf::remote

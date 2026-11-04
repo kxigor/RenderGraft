@@ -1,14 +1,14 @@
 #include <imgui.h>
 
-#include <afw/esp/internal/panel.hpp>
-#include <afw/esp/internal/projection.hpp>
-#include <afw/games/fc3/fc3.hpp>
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <functional>
+#include <rgf/esp/internal/panel.hpp>
+#include <rgf/esp/internal/projection.hpp>
+#include <rgf/integrations/fc3/fc3.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -25,11 +25,12 @@ struct VtableReport {
 };
 
 [[nodiscard]] VtableReport CollectVtables() noexcept {
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
 
   VtableReport report{};
-  for (const games::fc3::EntityInfo& kEntity :
-       games::fc3::Entities(kSnapshot)) {
+  for (const integrations::fc3::EntityInfo& kEntity :
+       integrations::fc3::Entities(kSnapshot)) {
     const std::uintptr_t kVtable{kEntity.vtable};
 
     bool placed{false};
@@ -76,14 +77,15 @@ void ShowVtables() {
 }
 
 void ShowPools(const math::Vec3& eye) {
-  const games::fc3::EntitySnapshot& kSnapshot{games::fc3::LastSnapshot()};
+  const integrations::fc3::EntitySnapshot& kSnapshot{
+      integrations::fc3::LastSnapshot()};
 
   std::uintptr_t low{0};
   std::uintptr_t high{0};
   std::uint32_t nearby{0};
 
-  for (const games::fc3::EntityInfo& kEntity :
-       games::fc3::Entities(kSnapshot)) {
+  for (const integrations::fc3::EntityInfo& kEntity :
+       integrations::fc3::Entities(kSnapshot)) {
     if (low == 0 || kEntity.address < low) {
       low = kEntity.address;
     }
@@ -100,4 +102,4 @@ void ShowPools(const math::Vec3& eye) {
   ImGui::Text("%-18s %u  of %u", "within range", nearby, kSnapshot.count);
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

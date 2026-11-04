@@ -1,11 +1,11 @@
-#include <afw/core/error.hpp>
-#include <afw/hook/error.hpp>
+#include <rgf/core/error.hpp>
+#include <rgf/hook/error.hpp>
 #include <string>
 #include <system_error>
 
-namespace afw::hook {
+namespace rgf::hook {
 
-const char* CategoryName(Error /*tag*/) { return "afw::hook"; }
+const char* CategoryName(Error /*tag*/) { return "rgf::hook"; }
 
 std::string Describe(Error error) {
   switch (error) {
@@ -25,7 +25,7 @@ std::string Describe(Error error) {
       return "the window was not found: the handle is null or no longer "
              "names a live window";
     default:
-      return "unknown afw::hook error";
+      return "unknown rgf::hook error";
   }
 }
 
@@ -36,4 +36,4 @@ std::error_code make_error_code(Error error) {
   return core::MakeErrorCode(error);
 }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook

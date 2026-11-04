@@ -1,8 +1,8 @@
 #include <windows.h>
 
-#include <afw/win/remote_memory.hpp>
+#include <rgf/win/remote_memory.hpp>
 
-namespace afw::win {
+namespace rgf::win {
 
 RemoteMemory::RemoteMemory(HANDLE proc, LPVOID addr)
     : proc_{proc}, addr_{addr} {}
@@ -42,4 +42,4 @@ void RemoteMemory::Reset(HANDLE proc, LPVOID addr) {
   addr_ = addr;
 }
 
-}  // namespace afw::win
+}  // namespace rgf::win

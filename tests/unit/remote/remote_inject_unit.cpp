@@ -1,15 +1,15 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/remote/error.hpp>
-#include <afw/remote/remote.hpp>
-#include <afw/win/remote_memory.hpp>
-#include <afw/win/scoped_handle.hpp>
 #include <array>
 #include <cstddef>
 #include <cwchar>
 #include <expected>
 #include <filesystem>
+#include <rgf/remote/error.hpp>
+#include <rgf/remote/remote.hpp>
+#include <rgf/win/remote_memory.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <string>
 #include <support/win_probe.hpp>
 #include <system_error>
@@ -62,8 +62,8 @@ constexpr PCWSTR kProbeDllName{L"winmm.dll"};
   return info;
 }
 
-[[nodiscard]] afw::win::ScopedHandle OpenSelf() {
-  return afw::win::ScopedHandle{OpenProcess(
+[[nodiscard]] rgf::win::ScopedHandle OpenSelf() {
+  return rgf::win::ScopedHandle{OpenProcess(
       /*dwDesiredAccess = */ PROCESS_ALL_ACCESS,
       /*bInheritHandle  = */ FALSE,
       /*dwProcessId     = */ GetCurrentProcessId())};
@@ -81,11 +81,11 @@ TEST(RemoteInjectUnit, MapsTheModuleIntoTheTargetProcess) {
   ASSERT_FALSE(kDllPath.empty());
   ASSERT_TRUE(std::filesystem::exists(kDllPath));
 
-  const afw::win::ScopedHandle kProc{OpenSelf()};
+  const rgf::win::ScopedHandle kProc{OpenSelf()};
   ASSERT_TRUE(static_cast<bool>(kProc));
 
   const std::expected<void, std::error_code> kResult{
-      afw::remote::InjectLibrary(kProc.Get(), kDllPath.c_str())};
+      rgf::remote::InjectLibrary(kProc.Get(), kDllPath.c_str())};
   ASSERT_TRUE(kResult.has_value()) << kResult.error().message();
 
   const HMODULE kLoaded{GetModuleHandleW(/*lpModuleName = */ kProbeDllName)};
@@ -97,19 +97,19 @@ TEST(RemoteInjectUnit, MapsTheModuleIntoTheTargetProcess) {
 }
 
 TEST(RemoteInjectUnit, ReportsFailureWhenTheRemoteLoadLibraryReturnsNull) {
-  const std::wstring kMissingDll{L"C:\\afw-no-such-dll-9f3c1d.dll"};
+  const std::wstring kMissingDll{L"C:\\rgf-no-such-dll-9f3c1d.dll"};
   ASSERT_FALSE(std::filesystem::exists(kMissingDll));
 
-  const afw::win::ScopedHandle kProc{OpenSelf()};
+  const rgf::win::ScopedHandle kProc{OpenSelf()};
   ASSERT_TRUE(static_cast<bool>(kProc));
 
   const std::expected<void, std::error_code> kResult{
-      afw::remote::InjectLibrary(kProc.Get(), kMissingDll.c_str())};
+      rgf::remote::InjectLibrary(kProc.Get(), kMissingDll.c_str())};
 
   ASSERT_FALSE(kResult.has_value());
-  EXPECT_EQ(kResult.error(), afw::remote::make_error_code(
-                                 afw::remote::Error::LoadLibraryFailed));
-  EXPECT_EQ(&kResult.error().category(), &afw::remote::ErrorCategory());
+  EXPECT_EQ(kResult.error(), rgf::remote::make_error_code(
+                                 rgf::remote::Error::LoadLibraryFailed));
+  EXPECT_EQ(&kResult.error().category(), &rgf::remote::ErrorCategory());
 }
 
 TEST(RemoteInjectUnit, ReportsTheWin32ErrorWhenTheTargetHandleIsInvalid) {
@@ -117,7 +117,7 @@ TEST(RemoteInjectUnit, ReportsTheWin32ErrorWhenTheTargetHandleIsInvalid) {
   ASSERT_FALSE(kDllPath.empty());
 
   const std::expected<void, std::error_code> kResult{
-      afw::remote::InjectLibrary(nullptr, kDllPath.c_str())};
+      rgf::remote::InjectLibrary(nullptr, kDllPath.c_str())};
 
   ASSERT_FALSE(kResult.has_value());
   EXPECT_EQ(&kResult.error().category(), &std::system_category());
@@ -133,35 +133,35 @@ TEST(RemoteInjectUnit, ReportsTimeoutWhenTheRemoteThreadOutlivesTheDeadline) {
   ASSERT_FALSE(kSlowDll.empty());
   ASSERT_EQ(GetModuleHandleW(/*lpModuleName = */ L"d3d11.dll"), nullptr);
 
-  const afw::win::ScopedHandle kProc{OpenSelf()};
+  const rgf::win::ScopedHandle kProc{OpenSelf()};
   ASSERT_TRUE(static_cast<bool>(kProc));
 
   const std::expected<void, std::error_code> kResult{
-      afw::remote::InjectLibrary(kProc.Get(), kSlowDll.c_str(), 0)};
+      rgf::remote::InjectLibrary(kProc.Get(), kSlowDll.c_str(), 0)};
 
   ASSERT_FALSE(kResult.has_value());
-  EXPECT_EQ(kResult.error(), afw::remote::make_error_code(
-                                 afw::remote::Error::RemoteThreadTimeout));
+  EXPECT_EQ(kResult.error(), rgf::remote::make_error_code(
+                                 rgf::remote::Error::RemoteThreadTimeout));
 }
 
 TEST(RemoteInjectUnit, CopiesIntoAForeignProcess) {
   const PROCESS_INFORMATION kChild{SpawnSuspendedSelf()};
   ASSERT_NE(kChild.hProcess, nullptr);
-  const afw::win::ScopedHandle kProc{kChild.hProcess};
-  const afw::win::ScopedHandle kThread{kChild.hThread};
+  const rgf::win::ScopedHandle kProc{kChild.hProcess};
+  const rgf::win::ScopedHandle kThread{kChild.hThread};
 
-  constexpr PCWSTR kSource{L"afw cross-process probe"};
+  constexpr PCWSTR kSource{L"rgf cross-process probe"};
   const std::size_t kCharCount{std::wcslen(kSource) + 1};
 
   LPVOID observed{nullptr};
   {
-    const std::expected<afw::win::RemoteMemory, std::error_code> kRemote{
-        afw::remote::StrDupEx(kProc.Get(), kSource)};
+    const std::expected<rgf::win::RemoteMemory, std::error_code> kRemote{
+        rgf::remote::StrDupEx(kProc.Get(), kSource)};
     ASSERT_TRUE(kRemote.has_value()) << kRemote.error().message();
 
     observed = kRemote->Get();
     ASSERT_NE(observed, nullptr);
-    EXPECT_TRUE(afw::test::RegionIsCommitted(kProc.Get(), observed));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(kProc.Get(), observed));
 
     std::vector<WCHAR> readBack(kCharCount, L'\0');
     SIZE_T bytesRead{};
@@ -175,7 +175,7 @@ TEST(RemoteInjectUnit, CopiesIntoAForeignProcess) {
     EXPECT_STREQ(readBack.data(), kSource);
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(kProc.Get(), observed));
+  EXPECT_TRUE(rgf::test::RegionIsFree(kProc.Get(), observed));
 
   TerminateProcess(
       /*hProcess  = */ kProc.Get(),
@@ -187,18 +187,18 @@ TEST(RemoteInjectUnit, CopiesTheNulTerminatedPathIntoTheTarget) {
   ASSERT_FALSE(kSource.empty());
   const std::size_t kCharCount{kSource.size() + 1};
 
-  const afw::win::ScopedHandle kProc{OpenSelf()};
+  const rgf::win::ScopedHandle kProc{OpenSelf()};
   ASSERT_TRUE(static_cast<bool>(kProc));
 
   LPVOID observed{nullptr};
   {
-    const std::expected<afw::win::RemoteMemory, std::error_code> kRemote{
-        afw::remote::StrDupEx(kProc.Get(), kSource.c_str())};
+    const std::expected<rgf::win::RemoteMemory, std::error_code> kRemote{
+        rgf::remote::StrDupEx(kProc.Get(), kSource.c_str())};
     ASSERT_TRUE(kRemote.has_value()) << kRemote.error().message();
 
     observed = kRemote->Get();
     ASSERT_NE(observed, nullptr);
-    EXPECT_TRUE(afw::test::RegionIsCommitted(kProc.Get(), observed));
+    EXPECT_TRUE(rgf::test::RegionIsCommitted(kProc.Get(), observed));
 
     std::vector<WCHAR> readBack(kCharCount, L'\0');
     SIZE_T bytesRead{};
@@ -214,5 +214,5 @@ TEST(RemoteInjectUnit, CopiesTheNulTerminatedPathIntoTheTarget) {
     EXPECT_STREQ(readBack.data(), kSource.c_str());
   }
 
-  EXPECT_TRUE(afw::test::RegionIsFree(kProc.Get(), observed));
+  EXPECT_TRUE(rgf::test::RegionIsFree(kProc.Get(), observed));
 }

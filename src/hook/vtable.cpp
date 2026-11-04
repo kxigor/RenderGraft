@@ -1,7 +1,7 @@
-#include <afw/hook/vtable.hpp>
 #include <cstddef>
+#include <rgf/hook/vtable.hpp>
 
-namespace afw::hook {
+namespace rgf::hook {
 
 Vtable::Vtable(void** table) noexcept : table_{table} {}
 
@@ -11,4 +11,4 @@ void** Vtable::Slot(std::size_t index) const noexcept { return table_ + index; }
 
 void* Vtable::At(std::size_t index) const noexcept { return *Slot(index); }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook

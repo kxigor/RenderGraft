@@ -1,14 +1,14 @@
 #include <imgui.h>
 
-#include <afw/config/config.hpp>
-#include <afw/esp/internal/draw.hpp>
-#include <afw/esp/internal/projection.hpp>
-#include <afw/math/angle.hpp>
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <rgf/config/config.hpp>
+#include <rgf/esp/internal/draw.hpp>
+#include <rgf/esp/internal/projection.hpp>
+#include <rgf/math/angle.hpp>
 
-namespace afw::esp {
+namespace rgf::esp {
 
 namespace {
 
@@ -60,4 +60,4 @@ void DrawCrosshair(const std::optional<math::ScreenPoint>& point,
                 kCrosshairThickness);
 }
 
-}  // namespace afw::esp
+}  // namespace rgf::esp

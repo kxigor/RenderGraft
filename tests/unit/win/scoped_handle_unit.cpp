@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 #include <windows.h>
 
-#include <afw/win/scoped_handle.hpp>
+#include <rgf/win/scoped_handle.hpp>
 #include <string>
 #include <support/win_probe.hpp>
 #include <utility>
@@ -19,32 +19,32 @@ namespace {
 }  // namespace
 
 TEST(ScopedHandleUnit, DefaultConstructedOwnsNothing) {
-  const afw::win::ScopedHandle kGuard{};
+  const rgf::win::ScopedHandle kGuard{};
 
   EXPECT_EQ(kGuard.Get(), nullptr);
   EXPECT_FALSE(static_cast<bool>(kGuard));
 }
 
 TEST(ScopedHandleUnit, InvalidHandleValueIsTreatedAsEmpty) {
-  const afw::win::ScopedHandle kGuard{INVALID_HANDLE_VALUE};
+  const rgf::win::ScopedHandle kGuard{INVALID_HANDLE_VALUE};
 
   EXPECT_FALSE(static_cast<bool>(kGuard));
   EXPECT_EQ(kGuard.Get(), INVALID_HANDLE_VALUE);
 }
 
 TEST(ScopedHandleUnit, DestructorClosesTheHandle) {
-  const std::wstring kName{afw::test::ProbeName(L"dtor")};
-  const HANDLE kRaw{afw::test::CreateProbeEvent(kName)};
+  const std::wstring kName{rgf::test::ProbeName(L"dtor")};
+  const HANDLE kRaw{rgf::test::CreateProbeEvent(kName)};
   ASSERT_NE(kRaw, nullptr);
-  ASSERT_TRUE(afw::test::ProbeObjectExists(kName));
+  ASSERT_TRUE(rgf::test::ProbeObjectExists(kName));
 
   {
-    const afw::win::ScopedHandle kGuard{kRaw};
+    const rgf::win::ScopedHandle kGuard{kRaw};
     EXPECT_TRUE(static_cast<bool>(kGuard));
     EXPECT_EQ(kGuard.Get(), kRaw);
   }
 
-  EXPECT_FALSE(afw::test::ProbeObjectExists(kName));
+  EXPECT_FALSE(rgf::test::ProbeObjectExists(kName));
 }
 
 TEST(ScopedHandleUnit, DestructorClosesTheHandleValue) {
@@ -52,11 +52,11 @@ TEST(ScopedHandleUnit, DestructorClosesTheHandleValue) {
   ASSERT_NE(kRaw, nullptr);
 
   {
-    const afw::win::ScopedHandle kGuard{kRaw};
+    const rgf::win::ScopedHandle kGuard{kRaw};
     EXPECT_TRUE(static_cast<bool>(kGuard));
   }
 
-  EXPECT_TRUE(afw::test::HandleIsClosed(kRaw));
+  EXPECT_TRUE(rgf::test::HandleIsClosed(kRaw));
 }
 
 TEST(ScopedHandleUnit, ReleaseTransfersOwnershipAwayFromTheGuard) {
@@ -64,14 +64,14 @@ TEST(ScopedHandleUnit, ReleaseTransfersOwnershipAwayFromTheGuard) {
   ASSERT_NE(kRaw, nullptr);
 
   {
-    afw::win::ScopedHandle guard{kRaw};
+    rgf::win::ScopedHandle guard{kRaw};
 
     EXPECT_EQ(guard.Release(), kRaw);
     EXPECT_FALSE(static_cast<bool>(guard));
     EXPECT_EQ(guard.Get(), nullptr);
   }
 
-  EXPECT_FALSE(afw::test::HandleIsClosed(kRaw));
+  EXPECT_FALSE(rgf::test::HandleIsClosed(kRaw));
   EXPECT_NE(CloseHandle(
                 /*hObject = */ kRaw),
             FALSE);
@@ -82,14 +82,14 @@ TEST(ScopedHandleUnit, ResetWithTheSameHandleIsANoOp) {
   ASSERT_NE(kRaw, nullptr);
 
   {
-    afw::win::ScopedHandle guard{kRaw};
+    rgf::win::ScopedHandle guard{kRaw};
     guard.Reset(kRaw);
 
-    EXPECT_FALSE(afw::test::HandleIsClosed(kRaw));
+    EXPECT_FALSE(rgf::test::HandleIsClosed(kRaw));
     EXPECT_EQ(guard.Get(), kRaw);
   }
 
-  EXPECT_TRUE(afw::test::HandleIsClosed(kRaw));
+  EXPECT_TRUE(rgf::test::HandleIsClosed(kRaw));
 }
 
 TEST(ScopedHandleUnit, ResetClosesTheOldHandleAndAdoptsTheNew) {
@@ -100,14 +100,14 @@ TEST(ScopedHandleUnit, ResetClosesTheOldHandleAndAdoptsTheNew) {
   ASSERT_NE(kFirst, kSecond);
 
   {
-    afw::win::ScopedHandle guard{kFirst};
+    rgf::win::ScopedHandle guard{kFirst};
     guard.Reset(kSecond);
 
-    EXPECT_TRUE(afw::test::HandleIsClosed(kFirst));
+    EXPECT_TRUE(rgf::test::HandleIsClosed(kFirst));
     EXPECT_EQ(guard.Get(), kSecond);
   }
 
-  EXPECT_TRUE(afw::test::HandleIsClosed(kSecond));
+  EXPECT_TRUE(rgf::test::HandleIsClosed(kSecond));
 }
 
 TEST(ScopedHandleUnit, MoveConstructionTransfersOwnership) {
@@ -115,37 +115,37 @@ TEST(ScopedHandleUnit, MoveConstructionTransfersOwnership) {
   ASSERT_NE(kRaw, nullptr);
 
   {
-    afw::win::ScopedHandle src{kRaw};
-    const afw::win::ScopedHandle kDst{std::move(src)};
+    rgf::win::ScopedHandle src{kRaw};
+    const rgf::win::ScopedHandle kDst{std::move(src)};
 
     EXPECT_EQ(kDst.Get(), kRaw);
     EXPECT_FALSE(static_cast<bool>(src));
     EXPECT_EQ(src.Get(), nullptr);
-    EXPECT_FALSE(afw::test::HandleIsClosed(kRaw));
+    EXPECT_FALSE(rgf::test::HandleIsClosed(kRaw));
   }
 
-  EXPECT_TRUE(afw::test::HandleIsClosed(kRaw));
+  EXPECT_TRUE(rgf::test::HandleIsClosed(kRaw));
 }
 
 TEST(ScopedHandleUnit, MoveAssignmentClosesTheHandleItReplaces) {
-  const std::wstring kVictimName{afw::test::ProbeName(L"moveassign")};
-  const HANDLE kVictim{afw::test::CreateProbeEvent(kVictimName)};
+  const std::wstring kVictimName{rgf::test::ProbeName(L"moveassign")};
+  const HANDLE kVictim{rgf::test::CreateProbeEvent(kVictimName)};
   ASSERT_NE(kVictim, nullptr);
   const HANDLE kSurvivor{CreateUnnamedEvent()};
   ASSERT_NE(kSurvivor, nullptr);
 
   {
-    afw::win::ScopedHandle dst{kVictim};
-    afw::win::ScopedHandle src{kSurvivor};
+    rgf::win::ScopedHandle dst{kVictim};
+    rgf::win::ScopedHandle src{kSurvivor};
     dst = std::move(src);
 
-    EXPECT_FALSE(afw::test::ProbeObjectExists(kVictimName));
+    EXPECT_FALSE(rgf::test::ProbeObjectExists(kVictimName));
     EXPECT_EQ(dst.Get(), kSurvivor);
     EXPECT_FALSE(static_cast<bool>(src));
     EXPECT_EQ(src.Get(), nullptr);
   }
 
-  EXPECT_TRUE(afw::test::HandleIsClosed(kSurvivor));
+  EXPECT_TRUE(rgf::test::HandleIsClosed(kSurvivor));
 }
 
 TEST(ScopedHandleUnit, SelfMoveAssignmentKeepsTheHandle) {
@@ -153,14 +153,14 @@ TEST(ScopedHandleUnit, SelfMoveAssignmentKeepsTheHandle) {
   ASSERT_NE(kRaw, nullptr);
 
   {
-    afw::win::ScopedHandle guard{kRaw};
+    rgf::win::ScopedHandle guard{kRaw};
 
     guard = std::move(guard);
 
     EXPECT_TRUE(static_cast<bool>(guard));
     EXPECT_EQ(guard.Get(), kRaw);
-    EXPECT_FALSE(afw::test::HandleIsClosed(kRaw));
+    EXPECT_FALSE(rgf::test::HandleIsClosed(kRaw));
   }
 
-  EXPECT_TRUE(afw::test::HandleIsClosed(kRaw));
+  EXPECT_TRUE(rgf::test::HandleIsClosed(kRaw));
 }

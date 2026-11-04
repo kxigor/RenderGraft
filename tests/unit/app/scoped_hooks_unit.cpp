@@ -1,16 +1,18 @@
 #include <gtest/gtest.h>
 
-#include <afw/app/scoped_hooks.hpp>
-#include <afw/hook/hook.hpp>
+#include <array>
 #include <expected>
 #include <memory>
+#include <rgf/app/scoped_hooks.hpp>
+#include <rgf/hook/hook.hpp>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 namespace {
 
-// A stand-in for a real hook, implementing the same afw::hook::Hook interface
+// A stand-in for a real hook, implementing the same rgf::hook::Hook interface
 // the set is written against. Every step appends to one journal, which is what
 // the ordering assertions read. Only the hook carries an id: the binding
 // records sit between two of its entries, so their order is unambiguous
@@ -20,8 +22,8 @@ std::vector<std::string>& Journal() noexcept {
   return steps;
 }
 
-void Record(int id, const char* step) {
-  Journal().push_back(std::to_string(id) + ":" + step);
+void Record(int hookId, const char* step) {
+  Journal().push_back(std::to_string(hookId) + ":" + step);
 }
 
 struct Plan {
@@ -31,9 +33,9 @@ struct Plan {
 
 void Detour() {}
 
-class FakeHook final : public afw::hook::Hook {
+class FakeHook final : public rgf::hook::Hook {
  public:
-  FakeHook(int id, Plan plan) noexcept : id_{id}, plan_{plan} {}
+  FakeHook(int hookId, Plan plan) noexcept : id_{hookId}, plan_{plan} {}
 
   FakeHook(const FakeHook&) = delete;
   FakeHook& operator=(const FakeHook&) = delete;
@@ -43,7 +45,8 @@ class FakeHook final : public afw::hook::Hook {
 
   ~FakeHook() override { Record(id_, "~hook"); }
 
-  [[nodiscard]] std::expected<void, std::error_code> Enable() noexcept override {
+  [[nodiscard]] std::expected<void, std::error_code> Enable() noexcept
+      override {
     Record(id_, "enable");
     if (plan_.enableFails) {
       return std::unexpected{
@@ -53,8 +56,8 @@ class FakeHook final : public afw::hook::Hook {
     return {};
   }
 
-  [[nodiscard]] std::expected<void, std::error_code>
-  Disable() noexcept override {
+  [[nodiscard]] std::expected<void, std::error_code> Disable() noexcept
+      override {
     Record(id_, "disable");
 
     return {};
@@ -79,7 +82,7 @@ class FakeHook final : public afw::hook::Hook {
 
 class FakeBinding {
  public:
-  explicit FakeBinding(const afw::hook::Hook& /*hook*/) noexcept {
+  explicit FakeBinding(const rgf::hook::Hook& /*hook*/) noexcept {
     Journal().emplace_back("bind");
   }
 
@@ -93,11 +96,11 @@ class FakeBinding {
 };
 
 // Returns the concrete type on purpose: the real call sites hand Add a
-// std::expected<std::unique_ptr<VmtHook>, ...>, and this keeps that conversion
-// under test.
+// std::expected<std::unique_ptr<WndProcHook>, ...>, and this keeps that
+// conversion under test.
 [[nodiscard]] std::expected<std::unique_ptr<FakeHook>, std::error_code> AHook(
-    int id, Plan plan = {}) {
-  return std::make_unique<FakeHook>(id, plan);
+    int hookId, Plan plan = {}) {
+  return std::make_unique<FakeHook>(hookId, plan);
 }
 
 [[nodiscard]] std::expected<std::unique_ptr<FakeHook>, std::error_code>
@@ -111,7 +114,7 @@ TEST(ScopedHooksUnit, ArmsTheHookInOrderAndDisablesBeforeTheBindingDies) {
   Journal().clear();
 
   {
-    afw::app::ScopedHooks hooks;
+    rgf::app::ScopedHooks hooks;
     EXPECT_TRUE(hooks.Add<FakeBinding>(AHook(1), &Detour, "first"));
   }
 
@@ -124,24 +127,55 @@ TEST(ScopedHooksUnit, TakesSeveralHooksDownInReverseOrder) {
   Journal().clear();
 
   {
-    afw::app::ScopedHooks hooks;
+    rgf::app::ScopedHooks hooks;
     ASSERT_TRUE(hooks.Add<FakeBinding>(AHook(1), &Detour, "first"));
     ASSERT_TRUE(hooks.Add<FakeBinding>(AHook(2), &Detour, "second"));
   }
 
-  EXPECT_EQ(Journal(),
-            (std::vector<std::string>{"1:set", "bind", "1:enable", "2:set",
-                                      "bind", "2:enable", "2:disable", "~bind",
-                                      "2:~hook", "1:disable", "~bind",
-                                      "1:~hook"}));
+  EXPECT_EQ(Journal(), (std::vector<std::string>{
+                           "1:set", "bind", "1:enable", "2:set", "bind",
+                           "2:enable", "2:disable", "~bind", "2:~hook",
+                           "1:disable", "~bind", "1:~hook"}));
 }
 
 TEST(ScopedHooksUnit, RejectsAHookThatWasNeverCreated) {
   Journal().clear();
 
   {
-    afw::app::ScopedHooks hooks;
+    rgf::app::ScopedHooks hooks;
     EXPECT_FALSE(hooks.Add<FakeBinding>(NoHook(), &Detour, "missing"));
+  }
+
+  EXPECT_TRUE(Journal().empty());
+}
+
+TEST(ScopedHooksUnit, OwnsAValueHookAndRestoresItsSlotAfterTheScope) {
+  Journal().clear();
+  int originalMarker{};
+  std::array<void*, 1> table{&originalMarker};
+
+  {
+    rgf::app::ScopedHooks hooks;
+    ASSERT_TRUE(hooks.Add<FakeBinding>(
+        rgf::hook::VmtHook::Create(rgf::hook::Vtable{table.data()}, 0), &Detour,
+        "value"));
+    EXPECT_NE(table.front(), nullptr);
+    EXPECT_NE(table.front(), &originalMarker);
+    EXPECT_EQ(Journal(), std::vector<std::string>{"bind"});
+  }
+
+  EXPECT_EQ(table.front(), &originalMarker);
+  EXPECT_EQ(Journal(), (std::vector<std::string>{"bind", "~bind"}));
+}
+
+TEST(ScopedHooksUnit, RejectsAValueHookThatWasNeverCreated) {
+  Journal().clear();
+  std::expected<rgf::hook::VmtHook, std::error_code> hook{
+      std::unexpected{std::make_error_code(std::errc::no_such_device)}};
+
+  {
+    rgf::app::ScopedHooks hooks;
+    EXPECT_FALSE(hooks.Add<FakeBinding>(std::move(hook), &Detour, "missing"));
   }
 
   EXPECT_TRUE(Journal().empty());
@@ -151,7 +185,7 @@ TEST(ScopedHooksUnit, BindsNothingWhenTheDetourIsRefused) {
   Journal().clear();
 
   {
-    afw::app::ScopedHooks hooks;
+    rgf::app::ScopedHooks hooks;
     EXPECT_FALSE(hooks.Add<FakeBinding>(AHook(1, Plan{.setDetourFails = true}),
                                         &Detour, "first"));
   }
@@ -163,7 +197,7 @@ TEST(ScopedHooksUnit, KeepsAHookThatFailedToEnableOutOfTheScope) {
   Journal().clear();
 
   {
-    afw::app::ScopedHooks hooks;
+    rgf::app::ScopedHooks hooks;
     EXPECT_FALSE(hooks.Add<FakeBinding>(AHook(1, Plan{.enableFails = true}),
                                         &Detour, "first"));
   }

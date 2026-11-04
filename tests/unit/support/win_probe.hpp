@@ -4,7 +4,7 @@
 
 #include <string>
 
-namespace afw::test {
+namespace rgf::test {
 
 [[nodiscard]] inline bool HandleIsClosed(HANDLE handle) {
   DWORD flags{};
@@ -18,7 +18,7 @@ namespace afw::test {
 }
 
 [[nodiscard]] inline std::wstring ProbeName(PCWSTR tag) {
-  return L"Local\\afw_test_" + std::to_wstring(GetCurrentProcessId()) + L"_" +
+  return L"Local\\rgf_test_" + std::to_wstring(GetCurrentProcessId()) + L"_" +
          std::wstring{tag};
 }
 
@@ -74,4 +74,4 @@ namespace afw::test {
   return kQueried == sizeof(info) && info.State == MEM_COMMIT;
 }
 
-}  // namespace afw::test
+}  // namespace rgf::test

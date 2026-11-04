@@ -1,19 +1,17 @@
 #include <windows.h>
 
-#include <afw/hook/error.hpp>
-#include <afw/hook/vmt_hook.hpp>
-#include <afw/hook/vtable.hpp>
-#include <afw/win/error.hpp>
-#include <afw/win/protect_guard.hpp>
 #include <cstddef>
 #include <expected>
-#include <memory>
-#include <new>
+#include <rgf/hook/error.hpp>
+#include <rgf/hook/vmt_hook.hpp>
+#include <rgf/hook/vtable.hpp>
+#include <rgf/win/error.hpp>
+#include <rgf/win/protect_guard.hpp>
 #include <system_error>
 #include <tuple>
 #include <utility>
 
-namespace afw::hook {
+namespace rgf::hook {
 
 namespace {
 
@@ -35,13 +33,13 @@ namespace {
   return *slot;
 }
 
-struct SlotParts {
-  void** slot{nullptr};
-  void* original{nullptr};
-};
+}  // namespace
 
-[[nodiscard]] std::expected<SlotParts, std::error_code> Resolve(
+std::expected<VmtHook, std::error_code> VmtHook::Create(
     Vtable table, std::size_t index) noexcept {
+  if (table.Get() == nullptr) {
+    return std::unexpected{std::make_error_code(std::errc::invalid_argument)};
+  }
   void** const kSlot{table.Slot(index)};
 
   const std::expected<void*, std::error_code> kOriginal{ReadSlot(kSlot)};
@@ -49,45 +47,25 @@ struct SlotParts {
     return std::unexpected{kOriginal.error()};
   }
 
-  return SlotParts{.slot = kSlot, .original = *kOriginal};
+  return VmtHook{kSlot, *kOriginal};
 }
 
-}  // namespace
+VmtHook::VmtHook(void** slot, void* original) noexcept
+    : slot_{slot}, original_{original} {}
 
-std::expected<VmtHook, std::error_code> VmtHook::Create(
-    Vtable table, std::size_t index) noexcept {
-  const std::expected<SlotParts, std::error_code> kParts{Resolve(table, index)};
-  if (!kParts) {
-    return std::unexpected{kParts.error()};
-  }
-
-  return std::expected<VmtHook, std::error_code>{
-      std::in_place, AdoptTag{}, kParts->slot, kParts->original};
-}
-
-std::expected<std::unique_ptr<VmtHook>, std::error_code> VmtHook::CreateDynamic(
-    Vtable table, std::size_t index) noexcept {
-  const std::expected<SlotParts, std::error_code> kParts{Resolve(table, index)};
-  if (!kParts) {
-    return std::unexpected{kParts.error()};
-  }
-
-  std::unique_ptr<VmtHook> hook{
-      new (std::nothrow) VmtHook{AdoptTag{}, kParts->slot, kParts->original}};
-  if (!hook) {
-    return std::unexpected{std::make_error_code(std::errc::not_enough_memory)};
-  }
-
-  return hook;
-}
-
-VmtHook::VmtHook(AdoptTag /*tag*/, void** slot, void* original) noexcept
-    : kSlot_{slot}, kOriginal_{original} {}
+VmtHook::VmtHook(VmtHook&& other) noexcept
+    : isEnabled_{std::exchange(other.isEnabled_, false)},
+      detour_{std::exchange(other.detour_, nullptr)},
+      slot_{std::exchange(other.slot_, nullptr)},
+      original_{std::exchange(other.original_, nullptr)} {}
 
 VmtHook::~VmtHook() { std::ignore = Disable(); }
 
 std::expected<void, std::error_code> VmtHook::SetDetourRaw(
     void* detour) noexcept {
+  if (slot_ == nullptr) {
+    return std::unexpected{std::make_error_code(std::errc::invalid_argument)};
+  }
   if (isEnabled_) {
     return std::unexpected{make_error_code(Error::HookAlreadyApplied)};
   }
@@ -97,9 +75,12 @@ std::expected<void, std::error_code> VmtHook::SetDetourRaw(
   return {};
 }
 
-void* VmtHook::OriginalRaw() const noexcept { return kOriginal_; }
+void* VmtHook::OriginalRaw() const noexcept { return original_; }
 
 std::expected<void, std::error_code> VmtHook::Enable() noexcept {
+  if (slot_ == nullptr) {
+    return std::unexpected{std::make_error_code(std::errc::invalid_argument)};
+  }
   if (detour_ == nullptr) {
     return std::unexpected{make_error_code(Error::DetourNotSet)};
   }
@@ -107,43 +88,33 @@ std::expected<void, std::error_code> VmtHook::Enable() noexcept {
     return std::unexpected{make_error_code(Error::HookAlreadyApplied)};
   }
 
-  const std::expected<void, std::error_code> kSwapped{SwapSlot(detour_)};
-  if (!kSwapped) {
-    return std::unexpected{kSwapped.error()};
-  }
-
-  isEnabled_ = true;
-
-  return {};
+  return SetEnabled(true);
 }
 
 std::expected<void, std::error_code> VmtHook::Disable() noexcept {
+  if (slot_ == nullptr) {
+    return {};
+  }
   if (!isEnabled_) {
     return std::unexpected{make_error_code(Error::HookNotApplied)};
   }
 
-  const std::expected<void, std::error_code> kSwapped{SwapSlot(kOriginal_)};
-  if (!kSwapped) {
-    return std::unexpected{kSwapped.error()};
-  }
-
-  isEnabled_ = false;
-
-  return {};
+  return SetEnabled(false);
 }
 
-std::expected<void, std::error_code> VmtHook::SwapSlot(void* value) noexcept {
+std::expected<void, std::error_code> VmtHook::SetEnabled(
+    bool isEnabled) noexcept {
   std::expected<win::ProtectGuard, std::error_code> guard{
-      win::ProtectGuard::Create(GetCurrentProcess(),
-                                static_cast<LPVOID>(kSlot_), sizeof(void*),
-                                PAGE_READWRITE)};
+      win::ProtectGuard::Create(GetCurrentProcess(), static_cast<LPVOID>(slot_),
+                                sizeof(void*), PAGE_READWRITE)};
   if (!guard) {
     return std::unexpected{guard.error()};
   }
 
-  *kSlot_ = value;
+  *slot_ = isEnabled ? detour_ : original_;
+  isEnabled_ = isEnabled;
 
-  return guard->Restore();
+  return {};
 }
 
-}  // namespace afw::hook
+}  // namespace rgf::hook
