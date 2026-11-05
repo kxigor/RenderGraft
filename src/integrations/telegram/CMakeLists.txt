@@ -1,5 +1,7 @@
 add_library(rgf_integrations_telegram STATIC
   internal/build.hpp
+  internal/peer.cpp
+  avatar_hook.cpp
   history_image_hook.cpp
   message_info.cpp
   message_sender_filter.cpp

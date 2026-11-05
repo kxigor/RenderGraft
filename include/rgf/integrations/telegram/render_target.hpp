@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <expected>
 #include <rgf/hook/vtable.hpp>
+#include <rgf/integrations/telegram/internal/userpic.hpp>
 #include <rgf/qt/internal/abi.hpp>
 #include <rgf/qt/widget_updater.hpp>
 #include <system_error>
@@ -23,8 +24,10 @@ class RenderTarget {
 
   [[nodiscard]] hook::Vtable MessageTable() const noexcept;
   [[nodiscard]] hook::Vtable HistoryTable() const noexcept;
+  [[nodiscard]] hook::Vtable TopicHistoryTable() const noexcept;
   [[nodiscard]] void** RasterTable() const noexcept;
   [[nodiscard]] qt::internal::GetPaintEngineFn PaintEngine() const noexcept;
+  [[nodiscard]] internal::PaintPeerUserpicFn UserpicPaint() const noexcept;
   [[nodiscard]] qt::WidgetUpdater WidgetUpdates() const noexcept;
 
  private:

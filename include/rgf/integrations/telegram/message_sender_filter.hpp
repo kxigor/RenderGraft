@@ -14,6 +14,7 @@ class MessageSenderFilter {
   ForUser(std::uint64_t userId) noexcept;
 
   [[nodiscard]] bool Matches(const MessageInfo& message) const noexcept;
+  [[nodiscard]] bool Matches(std::uint64_t peerId) const noexcept;
 
  private:
   explicit MessageSenderFilter(std::uint64_t userId) noexcept;

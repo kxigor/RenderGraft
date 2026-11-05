@@ -28,6 +28,15 @@ target_compile_definitions(rgf_telegram PRIVATE
 
 target_link_libraries(rgf_telegram PRIVATE rgf::module rgf::integrations::telegram rgf::win psapi)
 
+get_target_property(rgf_minhook_source_dir minhook SOURCE_DIR)
+add_custom_command(TARGET rgf_telegram POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${rgf_minhook_source_dir}/LICENSE.txt"
+    "$<TARGET_FILE_DIR:rgf_telegram>/MinHook-LICENSE.txt"
+  COMMENT "Copying the MinHook license next to rgf_telegram.dll"
+  VERBATIM
+)
+
 if(TARGET project_options)
   target_link_libraries(rgf_telegram PRIVATE project_options)
 endif()

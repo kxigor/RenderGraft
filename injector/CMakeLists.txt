@@ -91,4 +91,12 @@ if(TARGET rgf_telegram)
   endif()
 
   add_dependencies(rgf_stage_telegram_dll rgf_telegram rgf_injector_telegram)
+  get_target_property(rgf_minhook_source_dir minhook SOURCE_DIR)
+  add_custom_command(TARGET rgf_stage_telegram_dll POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+      "${rgf_minhook_source_dir}/LICENSE.txt"
+      "$<TARGET_FILE_DIR:rgf_injector_telegram>/MinHook-LICENSE.txt"
+    COMMENT "Copying the MinHook license next to injector_telegram.exe"
+    VERBATIM
+  )
 endif()

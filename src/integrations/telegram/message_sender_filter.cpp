@@ -21,7 +21,11 @@ MessageSenderFilter::MessageSenderFilter(std::uint64_t userId) noexcept
     : kUserId_{userId} {}
 
 bool MessageSenderFilter::Matches(const MessageInfo& message) const noexcept {
-  return message.FromPeerId() == kUserId_;
+  return Matches(message.FromPeerId());
+}
+
+bool MessageSenderFilter::Matches(std::uint64_t peerId) const noexcept {
+  return peerId == kUserId_;
 }
 
 }  // namespace rgf::integrations::telegram

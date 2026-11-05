@@ -2,6 +2,7 @@ add_gtest(hook_unit
   SOURCES
     vtable_unit.cpp
     vmt_hook_unit.cpp
+    inline_hook_unit.cpp
     wnd_proc_hook_unit.cpp
     error_unit.cpp
   LIBRARIES rgf::hook rgf::win project_options project_sanitizers project_coverage

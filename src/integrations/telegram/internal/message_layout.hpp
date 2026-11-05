@@ -4,15 +4,16 @@
 #include <cstdint>
 #include <type_traits>
 
+#include "peer.hpp"
+
 namespace rgf::integrations::telegram::internal {
 
-// Telegram Desktop 7.3.2, Windows x64, MSVC ABI.
+// Telegram Desktop 7.3.3, Windows x64, MSVC ABI.
 // Message is the owning view for this draw scope. Its HistoryItem is not
 // necessarily the source of every Qt text run (quotes, names, album captions).
 inline constexpr std::size_t kMessageItemOffset{0x40};
 inline constexpr std::size_t kItemIdOffset{0x8};
 inline constexpr std::size_t kHistoryPeerOffset{0x320};
-inline constexpr std::size_t kPeerIdOffset{0x8};
 inline constexpr std::uint64_t kOutgoingFlag{0x800};
 
 // A contiguous HistoryItem prefix beginning at id. Foreign pointers remain
