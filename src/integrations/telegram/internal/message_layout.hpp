@@ -8,7 +8,7 @@
 
 namespace rgf::integrations::telegram::internal {
 
-// Telegram Desktop 7.3.3, Windows x64, MSVC ABI.
+// Telegram Desktop 7.3.5, Windows x64, MSVC ABI.
 // Message is the owning view for this draw scope. Its HistoryItem is not
 // necessarily the source of every Qt text run (quotes, names, album captions).
 inline constexpr std::size_t kMessageItemOffset{0x40};

@@ -7,7 +7,7 @@
 
 namespace rgf::integrations::telegram::internal {
 
-// PeerData's native typed PeerId in Telegram Desktop 7.3.3, MSVC x64.
+// PeerData's native typed PeerId in Telegram Desktop 7.3.5, MSVC x64.
 inline constexpr std::size_t kPeerIdOffset{0x8};
 
 [[nodiscard]] std::expected<std::uint64_t, std::error_code> ReadPeerId(

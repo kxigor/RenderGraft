@@ -18,7 +18,7 @@ Main components carried over from AimbotFramework:
 | `rgf::integrations::fc3`, `rgf::esp`, `rgf::aimbot` | Far Cry 3 adapter, entity visualization, and game logic |
 | `rgf::menu`, `rgf::config` | Interface and settings for the current example |
 
-The framework uses the `rgf::*` namespace and CMake aliases, with public headers under `include/rgf/`. Application adapters live together under `include/rgf/integrations/<application>/` and `src/integrations/<application>/`, with namespaces and CMake aliases under `rgf::integrations`. Their tests live under `tests/unit/integrations/<application>/`. `rgf::app` accepts an implementation through `rgf::app::Game`, but installs the D3D11 hook itself; ESP and aim assist still depend on Far Cry 3. Doom 3 and Quake II RTX have skeleton implementations: OpenGL/Vulkan backends and inline/trampoline hooks are not implemented yet.
+The framework uses the `rgf::*` namespace and CMake aliases, with public headers under `include/rgf/`. Application adapters live together under `include/rgf/integrations/<application>/` and `src/integrations/<application>/`, with namespaces and CMake aliases under `rgf::integrations`. Their tests live under `tests/unit/integrations/<application>/`. `rgf::app` accepts an implementation through `rgf::app::Game`, but installs the D3D11 hook itself; ESP and aim assist still depend on Far Cry 3. Doom 3 and Quake II RTX have skeleton implementations; their OpenGL/Vulkan backends are not implemented yet.
 
 `DllMain` delegates to `rgf::module::DllEntry(instance, reason, &OnAttach)`. The `void OnAttach()` callback runs the entire session; before returning, it must finish its work and remove its hooks. `app::Run()` releases session resources and returns, then the callback's local objects are destroyed and the bootstrap unloads the DLL. If an unexpected exception escapes the callback, the worker thread exits and leaves the DLL loaded.
 
@@ -34,13 +34,13 @@ TODO: Design a coherent logging architecture with singleton access and logger fa
 
 ## Telegram Desktop
 
-A planned adapter will visually hide sensitive content during screen sharing in the installed Telegram Desktop client. The specific elements and interception method will be chosen after research.
+The Telegram adapter visually masks selected content in the installed Telegram Desktop client through Qt rendering hooks.
 
-The supported target is Telegram Desktop 7.3.3 x64 with statically linked Qt 6.11.2. The current reversible probe masks text, raster images, and static history avatars for a selected Telegram user. Avatar masking includes both profile photos and generated initials in ordinary history views and forum topics.
+The supported target is Telegram Desktop 7.3.5 x64 with statically linked Qt 6.11.2. The current reversible probe masks text, raster images, and static history avatars for a selected Telegram user. Avatar masking includes both profile photos and generated initials in ordinary history views and forum topics.
 
 The `rgf::integrations::telegram` library contains the adapter and rendering probe, with headers under `include/rgf/integrations/telegram/` and implementations under `src/integrations/telegram/`. The supported build profile is private to `src/integrations/telegram/internal/`. The DLL entry point and diagnostic file output remain under `dll/telegram/`; the entry point supplies the probe's report callback. Tests link the adapter library directly.
 
-The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.3), and [Qt 6 QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
+The starting points are Qt Widgets, `QPainter`, paint events, the [Telegram Desktop source code](https://github.com/telegramdesktop/tdesktop/tree/v7.3.5), and [Qt 6 QWidget documentation](https://doc.qt.io/qt-6/qwidget.html).
 
 ### Milestones
 
